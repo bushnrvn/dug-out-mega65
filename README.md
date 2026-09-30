@@ -17,7 +17,14 @@ export CC65_HOME=/path/to/cc65      # a cc65 build with the mega65 target
 make                                # writes build/dugout.prg
 ```
 
-Run `build/dugout.prg` on a MEGA65 or in the Xemu emulator.
+Run `build/dugout.prg` on a MEGA65, or in the Xemu emulator:
+
+```sh
+scripts/run-xemu.sh                 # opens the emulator
+SHOT=/tmp/out.png scripts/run-xemu.sh   # runs, then saves a screenshot once the program returns to BASIC
+```
+
+Set `XEMU` to your `xmega65` binary and `M65_ROM` to a MEGA65 or C65 ROM image you own. The ROM is not in this repo.
 
 ## Credits
 

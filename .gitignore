@@ -4,3 +4,6 @@ build/
 *.o
 *.map
 .DS_Store
+*.bin
+*.rom
+*.ROM

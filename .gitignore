@@ -1,0 +1,6 @@
+build/
+*.prg
+*.d81
+*.o
+*.map
+.DS_Store

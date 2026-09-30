@@ -4,6 +4,9 @@
 #include "game.h"
 #include "render.h"
 
+#ifndef TEST_LEVEL
+#define TEST_LEVEL 1
+#endif
 #ifndef TEST_TICKS
 #define TEST_TICKS 240
 #endif
@@ -17,7 +20,7 @@ int main(void)
     __asm__("sei");                                  /* the ROM's interrupt routine would fight over the screen */
     POKE(0x00, 65);                                  /* 40 MHz */
 
-    level = 1; lives = 3; state = ST_PLAY;
+    level = TEST_LEVEL; lives = 3; state = ST_PLAY;
 #ifdef TEST_EXIT
     run_seed = 4661u;                                /* the same caves every test run */
 #else

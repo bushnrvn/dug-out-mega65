@@ -8,7 +8,10 @@ your fastball, and drop home plates on the rest. Nine innings, then a boss.
 
 ## Status
 
-Just started. The repo builds a placeholder program; the game itself is not ported yet. See `docs/PORT-NOTES.md`.
+Milestone 1 works in the Xemu emulator: the dirt field and auto-tiled tunnels are drawn on the VIC-IV at 3x from the
+game's own art, using a hard-coded test level. No Doug, enemies, sound or input yet. See `docs/PORT-NOTES.md`.
+
+`tools/convert.py` turns the art in `assets/` into `src/data.c` (run by `make`).
 
 ## Build
 

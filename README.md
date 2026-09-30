@@ -8,18 +8,19 @@ your fastball, and drop home plates on the rest. Nine innings, then a boss.
 
 ## Status
 
-Milestone 2 works in the Xemu emulator:
-- the dirt field and auto-tiled tunnels are drawn on the VIC-IV from the game's own art (full-colour characters,
-  stretched 4x wide in hardware and 3x tall in the tile data);
-- Doug is a full-colour hardware sprite that moves and digs with the GameTank version's movement rules; digging
-  swaps the tiles in the map;
-- input is read from the keyboard (cursor keys, Z, Return) and joystick port 2.
+Milestone 3 works in the Xemu emulator:
+- the real level generator runs: random pockets, shafts and boulders for each inning, seeded per game;
+- the game logic is the GameTank version's own C (map, Doug's movement and digging, enemy behaviour, strikes, rocks,
+  scoring), compiled unchanged into `src/game.c`; only drawing, input, timing and sound are MEGA65 code;
+- the dirt, tunnels, boulders, enemies and effects are all drawn;
+- Doug is a hardware sprite, everything else is drawn by the CPU into the field's characters ("software sprites"), which
+  avoids the VIC-IV's limit of eight sprites.
 
-The level is still a hard-coded test level, and there are no enemies, rocks, scoring, sound or screens yet.
-The keyboard and joystick code has not been exercised: the automated checks drive Doug with a scripted route.
-Everything has been run only in the emulator. See `docs/PORT-NOTES.md`.
+Not done yet: the score and lives display, the title, intro and end screens, sound and music, the high score.
+The keyboard and joystick code has not been exercised (the automated checks cannot press keys). Everything has been run
+only in the emulator. See `docs/PORT-NOTES.md`.
 
-`tools/convert.py` turns the art in `assets/` into `src/data.c` (run by `make`).
+`tools/convert.py` turns the art in `assets/` into `src/data.c` and `src/sprites.c` (run by `make`).
 
 ## Build
 

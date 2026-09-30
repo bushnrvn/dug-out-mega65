@@ -40,3 +40,16 @@ The PRG loads at $2001 in C65 mode. Below $8000 is plain RAM, but ROMs are laid 
 constructor, from a segment below $8000) and clears ROM8/ROMA/ROMC in $D030, after which $2001-$BFFF are all usable
 (`cfg/dugout.cfg`, HIMEM $C000). Checked in Xemu by running a function placed above $8000. The large tables are only ever
 read by DMA, which ignores the ROM overlay anyway.
+
+## Software sprites
+Only eight hardware sprites exist and the game can have about twenty things moving, so apart from Doug everything is drawn by the CPU into
+copies of the characters it covers (`src/render.c`): each frame the plain map is copied, every cell an actor touches gets its own copy of its tile,
+the actors are drawn into the copies, then the copies and the map are uploaded to the buffer that is not being shown and the display switches
+to it. There are two screen buffers and two pools of 96 copies. Characters are 8 wide and a game pixel is one character pixel across and three
+down (the tile data repeats each row 3x).
+
+## Memory (measured)
+- $2001-$CFFF: program, data and BSS (ROMs switched off at start-up).
+- $D000-$F6FF: the dirt picture's first 156 characters, read only by DMA. $F700 and up is overwritten by the system after the program loads, so
+  nothing may be placed there (this cost an hour to find: the last tiles came out as garbage).
+- Chip RAM: tiles from $40000 (character 4096), copies at characters 5000 and up, screens at $12000 and $13000, Doug's sprite at $16000.

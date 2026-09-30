@@ -34,3 +34,9 @@ Drawing, input, timing, sound, saving, and an asset converter from the GameTank 
 - Sprite palette: bank 2, entry = sprite number * 16 + pixel value. Characters use palette bank 1 unchanged from the
   GameTank palette.
 - Test builds (`-DTEST_EXIT`) end by writing $42 to $D6CF, which makes Xemu (-testing) exit and save a screenshot.
+
+## Memory layout
+The PRG loads at $2001 in C65 mode. Below $8000 is plain RAM, but ROMs are laid over $8000-$BFFF; `src/early.s` runs first (as a
+constructor, from a segment below $8000) and clears ROM8/ROMA/ROMC in $D030, after which $2001-$BFFF are all usable
+(`cfg/dugout.cfg`, HIMEM $C000). Checked in Xemu by running a function placed above $8000. The large tables are only ever
+read by DMA, which ignores the ROM overlay anyway.

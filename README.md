@@ -8,8 +8,16 @@ your fastball, and drop home plates on the rest. Nine innings, then a boss.
 
 ## Status
 
-Milestone 1 works in the Xemu emulator: the dirt field and auto-tiled tunnels are drawn on the VIC-IV at 3x from the
-game's own art, using a hard-coded test level. No Doug, enemies, sound or input yet. See `docs/PORT-NOTES.md`.
+Milestone 2 works in the Xemu emulator:
+- the dirt field and auto-tiled tunnels are drawn on the VIC-IV from the game's own art (full-colour characters,
+  stretched 4x wide in hardware and 3x tall in the tile data);
+- Doug is a full-colour hardware sprite that moves and digs with the GameTank version's movement rules; digging
+  swaps the tiles in the map;
+- input is read from the keyboard (cursor keys, Z, Return) and joystick port 2.
+
+The level is still a hard-coded test level, and there are no enemies, rocks, scoring, sound or screens yet.
+The keyboard and joystick code has not been exercised: the automated checks drive Doug with a scripted route.
+Everything has been run only in the emulator. See `docs/PORT-NOTES.md`.
 
 `tools/convert.py` turns the art in `assets/` into `src/data.c` (run by `make`).
 

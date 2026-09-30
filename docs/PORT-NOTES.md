@@ -21,3 +21,16 @@ Drawing, input, timing, sound, saving, and an asset converter from the GameTank 
 ## Open decisions
 - Keep the 128x128 look, scaled up, or redraw at a higher resolution.
 - How to package it (a disk image on itch.io is the usual way).
+
+## Measured in Xemu (Open ROM banner shows a MEGA65 R3, PAL)
+- Display window: x 80..720, y 104..504 (640x400). The text area starts at (80, 104) by default; it is moved to (144, 148)
+  to centre the 512x312 picture.
+- CHRXSCL ($D05A): character width is about 980/value pixels, rounded down. 30 gives exactly 32 px, i.e. 4x.
+- CHRYSCL ($D05B) had no effect in this mode at any value I tried, so vertical 3x is done in the tile data instead
+  (each tile is three characters stacked, with every pixel row repeated 3x).
+- Sprites: full-colour, 16 sprite pixels wide = 32 physical pixels; with the native-vertical flag each row is one raster.
+  Screen x = 2*X + 31, screen y = Y (both need their top bit in $D010 / $D077). In full-colour mode the low nybble of
+  the sprite's colour register ($D027...) is the transparent pixel value and must be 0.
+- Sprite palette: bank 2, entry = sprite number * 16 + pixel value. Characters use palette bank 1 unchanged from the
+  GameTank palette.
+- Test builds (`-DTEST_EXIT`) end by writing $42 to $D6CF, which makes Xemu (-testing) exit and save a screenshot.

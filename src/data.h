@@ -7,4 +7,8 @@
 extern const unsigned char field_tiles[208][64];
 extern const unsigned char tunnel_tiles[16][64];
 extern const unsigned char palette_rgb[256][3];
+#define SPRITE_BYTES 192
+#define DOUG_FRAMES 10
+extern const unsigned char doug_frames[10][192];
+extern const unsigned char doug_pal[16][3];
 #endif

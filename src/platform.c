@@ -95,6 +95,29 @@ static uint8_t key_down(uint8_t col, uint8_t row)
     return (PEEK(0xDC01) & (1u << row)) == 0;
 }
 
+/* One direction at a time. An 8-way joystick (or two cursor keys) held on a diagonal would make Doug turn on the spot every tick, so
+ * a diagonal is resolved to one of its two directions: the one that was just added, or else the one that was already being followed. */
+static uint8_t last_dir, prev_dirs;
+#define DIR_BITS (INPUT_MASK_UP | INPUT_MASK_DOWN | INPUT_MASK_LEFT | INPUT_MASK_RIGHT)
+
+static uint8_t one_direction(uint8_t d)
+{
+    uint8_t fresh, v, h;
+    if ((d & (INPUT_MASK_UP | INPUT_MASK_DOWN)) == (INPUT_MASK_UP | INPUT_MASK_DOWN)) d &= ~(INPUT_MASK_UP | INPUT_MASK_DOWN);
+    if ((d & (INPUT_MASK_LEFT | INPUT_MASK_RIGHT)) == (INPUT_MASK_LEFT | INPUT_MASK_RIGHT)) d &= ~(INPUT_MASK_LEFT | INPUT_MASK_RIGHT);
+    v = d & (INPUT_MASK_UP | INPUT_MASK_DOWN);
+    h = d & (INPUT_MASK_LEFT | INPUT_MASK_RIGHT);
+    fresh = d & ~prev_dirs;                                       /* what is held now that was not held on the last call */
+    prev_dirs = d;                                                /* (the directions held, not the one chosen) */
+    if (v && h) {
+        if (fresh == v || fresh == h) d = fresh;                  /* exactly one was just added: turn to it */
+        else if (last_dir & d) d = last_dir & d;                  /* otherwise keep going the way we were */
+        else d = h;
+    }
+    if (d) last_dir = d;
+    return d;
+}
+
 uint8_t read_input(void)
 {
     uint8_t r = 0, shift, j;
@@ -116,7 +139,7 @@ uint8_t read_input(void)
     if (key_down(0, 1)) r |= INPUT_MASK_START;                              /* Return */
     POKE(0xDC00, 0xFF);
     POKE(0xDC02, 0x00);                               /* port A back to input, for the next call's joystick read */
-    return r;
+    return (r & ~DIR_BITS) | one_direction(r & DIR_BITS);
 }
 
 uint16_t timer_now(void)       /* CIA 1 timer A: counts down about a million times a second */

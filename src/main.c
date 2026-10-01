@@ -195,6 +195,32 @@ int main(void)
     score_h = 107; score_t = 0; hi_h = 107; hi_t = 0; new_best = 1; state = TEST_START; icur = intro_for_level(level);      /* a screenshot of the game over or victory screen */
 #endif
     build_level();
+#ifdef TEST_REVIVE
+    e_state[0] = ES_NONE;                            /* Vumpire 0 is out, its headstone lies under Vumpire 1: the revival should start */
+    c_on[0] = 1; c_slot[0] = 0; c_x[0] = e_x[1]; c_y[0] = e_y[1];
+    enemies_left = 2;
+#ifdef TEST_STOMP
+    px = c_x[0]; py = c_y[0];                        /* Doug stands on the headstone: he should stomp it, and nothing is raised */
+#endif
+#ifdef TEST_ALONE
+    e_state[1] = ES_NONE; e_state[2] = ES_NONE;      /* no living Vumpire left to raise anyone: the headstone should go */
+    enemies_left = 0;
+#endif
+#endif
+#ifdef TEST_BOSS
+#ifndef TEST_BOSS_DIST
+#define TEST_BOSS_DIST 32
+#endif
+    {   /* a straight, cleared tunnel from Doug to the boss, 32 pixels long, Doug facing him: a fair throwing fight */
+        unsigned char bc = e_x[0] >> 3, br = e_y[0] >> 3, c;
+        if (e_x[0] >= TEST_BOSS_DIST) { px = e_x[0] - TEST_BOSS_DIST; pdir = DIR_R; for (c = (px >> 3); c <= bc; ++c) M(c, br) = 0; }
+        else              { px = e_x[0] + TEST_BOSS_DIST; pdir = DIR_L; for (c = bc; c <= (px >> 3); ++c) M(c, br) = 0; }
+        py = e_y[0];
+#ifdef TEST_BOSS_STRIKES
+        e_infl[0] = TEST_BOSS_STRIKES;               /* the boss already has this many strikes on him */
+#endif
+    }
+#endif
     render_init();
     snd_start();
     load_hiscore();

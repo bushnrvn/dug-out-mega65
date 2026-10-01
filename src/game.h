@@ -41,6 +41,7 @@ extern unsigned char enemies_left, espeed;
 extern unsigned char r_on[MAXR], r_c[MAXR], r_r[MAXR], r_y[MAXR], r_state[MAXR], r_timer[MAXR], r_kills[MAXR];
 extern unsigned char pop_t[MAXP], pop_x[MAXP], pop_y[MAXP];
 extern unsigned int pop_v[MAXP];
+extern unsigned char candy_on, candy_c, candy_r;   /* a wrapped candy lying in one enemy cave: 500 points */
 extern unsigned char field_dirty;
 extern int player1_buttons, player1_new_buttons;
 

@@ -213,6 +213,9 @@ int main(void)
     enemies_left = 0;
 #endif
 #endif
+#ifdef TEST_CANDY
+    candy_c = 6; candy_r = 2;                        /* the candy lies where Doug starts: picking it up should score 500 */
+#endif
 #ifdef TEST_HEATER
     {   /* inning 2: Doug in a cleared row, TEST_DIST pixels from the Heater (enemy 1), facing it, with nothing else about */
         unsigned char hc = e_x[1] >> 3, hr = e_y[1] >> 3, c;

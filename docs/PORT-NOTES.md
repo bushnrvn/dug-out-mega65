@@ -109,3 +109,7 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
 - A stunned enemy kills Doug on touch (the Groundskeeper still does not). Bats leave their pocket after 100 ticks instead of 150.
 - Extra life every 10,000 points (`next_life_h`, in hundreds, was 300).
 - Game over screen: a dark backing behind "YOU'RE OUT!" and the dot grid cleared from the "STRIKE 3" plaque's lettering (tools/convert.py).
+- A wrapped candy (new 8x8 sprite `candy` in the shared sprite sheet; `SP_CANDY_X/Y` in gen_art.h) lies in a random cell near the middle of a random
+  enemy cave each inning: 500 points when Doug touches it, enemies walk over it. The sprite block grew, so `GLYPH_OFF` is now $1A00.
+- The theme's drum track now comes in after about 3 seconds instead of 30 (`drums_in_sooner` in tools/make_sound.py adds the same hit
+  on the same beat grid earlier), because innings are shorter than 30 seconds of music.

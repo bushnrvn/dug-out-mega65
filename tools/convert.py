@@ -391,7 +391,7 @@ def cname(n):
 # ---- SPRITES: the software sprites' pixels (one byte each, 0 = transparent) and the font's glyph images (24 bytes each, in
 # both colours), as a data file the game copies into chip RAM at $10000 (bank 1), where the drawing code reads them with
 # 28-bit pointers. The structures in sprites.c hold each sprite's size and its offset into that block.
-GLYPH_OFF = 0x1900                          # the glyph images' place in the block (the sprites come first)
+GLYPH_OFF = 0x1A00                          # the glyph images' place in the block (the sprites come first)
 sprite_block = bytearray()
 sprite_off = []
 for n, w, h, px in soft:

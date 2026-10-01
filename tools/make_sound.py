@@ -96,6 +96,32 @@ def parse_midi(path):
     return streams
 
 
+def drums_in_sooner(stream, first_frame):
+    """The theme's drum track (a steady snare hit on every beat) used to come in 30 seconds into the song, later than most
+    innings last. Add the same hits earlier on the same beat grid, from the first beat at or after first_frame."""
+    ev, i, pos = [], 0, 0
+    while stream[i] != 0xFF:
+        note, ln = stream[i], stream[i + 1] | (stream[i + 2] << 8)
+        ev.append((pos, note, ln)); pos += ln; i += 3
+    hits = [e for e in ev if e[1]]
+    period = (hits[29][0] - hits[0][0]) / 29.0
+    length, note, t = hits[0][2], hits[0][1], hits[0][0]
+    early = []
+    k = 1
+    while hits[0][0] - k * period >= first_frame:
+        early.append((int(round(hits[0][0] - k * period)), note, length)); k += 1
+    out, pos = bytearray(), 0
+    for st, nn, ln in sorted(early) + hits:
+        if st > pos:
+            out += struct.pack('<BH', 0, st - pos)
+        out += struct.pack('<BH', nn, ln)
+        pos = st + ln
+    total = ev[-1][0] + ev[-1][2]
+    if pos < total:
+        out += struct.pack('<BH', 0, total - pos)
+    return bytes(out) + b'\xff'
+
+
 def parse_sfx(name):
     d = open(os.path.join(AUDIO, name + '.sfx'), 'rb').read()
     n = d[0]
@@ -119,7 +145,10 @@ def main():
     blobs, song_offs, sfx_offs = bytearray(), [], []
     for s in SONGS:
         offs = []
-        for stream in parse_midi(os.path.join(AUDIO, s + '.mid')):
+        streams = parse_midi(os.path.join(AUDIO, s + '.mid'))
+        if s == 'theme':
+            streams[2] = drums_in_sooner(streams[2], 150)       # the snare, from about 2.5 seconds in
+        for stream in streams:
             if stream:
                 offs.append(pos + len(blobs)); blobs += stream
             else:

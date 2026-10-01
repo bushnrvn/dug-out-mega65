@@ -66,6 +66,7 @@ unsigned char enemies_left, espeed;
 unsigned char r_on[MAXR], r_c[MAXR], r_r[MAXR], r_y[MAXR], r_state[MAXR], r_timer[MAXR], r_kills[MAXR];
 unsigned char pop_t[MAXP], pop_x[MAXP], pop_y[MAXP];
 unsigned int pop_v[MAXP];
+unsigned char candy_on, candy_c, candy_r;
 
 
 static void add_popup(unsigned char x, unsigned char y, unsigned int v)
@@ -207,6 +208,10 @@ void build_level(void)
             break;
         }
     }
+    i = rng() % ne;                             /* a wrapped candy lies in one of the enemy caves, near its middle */
+    c = e_homec[i] + rng() % 3 - 1; r = e_homer[i];
+    if (M(c, r) != 0) c = e_homec[i];
+    candy_c = c; candy_r = r; candy_on = 1;
     reset_player();
     reset_enemies_home();
     field_dirty = 1;
@@ -363,6 +368,12 @@ static void player_update(void)
             mark_around(c, r);
             SFX(ASSET__audio__dig_sfx_ID);
         }
+    }
+
+    if (candy_on && ((px + 4) >> 3) == candy_c && ((py + 4) >> 3) == candy_r) {      /* the candy: enemies walk over it, Doug picks it up */
+        candy_on = 0;
+        add_score(5); add_popup(px, py, 5);
+        SFXP(ASSET__audio__oneup_sfx_ID, 1);
     }
 
     /* --- throw a baseball ---------------------------------------------- */

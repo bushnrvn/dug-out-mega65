@@ -32,19 +32,14 @@
 #define SCREEN_A     0x12000UL               /* two screen buffers, 2 bytes per character */
 #define SCREEN_B     0x13000UL
 #define COLOUR_OFS   0x2000u                 /* colour RAM offset, in $FF80000 */
-#define SPRITE_PTRS  0x15F00UL               /* Doug's sprite pointer list (16 bytes) */
-#define SPRITE_DATA  0x16000UL               /* Doug's sprite images, 64-byte aligned */
-#define XSCL         30                      /* character width = about 980/XSCL pixels: 30 gives 32, i.e. 4x (measured in Xemu) */
+#define XSCL         40                      /* character width = about 980/XSCL pixels: 40 gives 24, i.e. 3x (measured in Xemu) */
 
 /* Layout on the 640x400 display (window x 80..720, y 104..504), in physical pixels, all measured in Xemu.
  * The picture is 512x360 (strip and field), so to centre it the text area starts at 144,124. A sprite at register (X, Y) has its left edge at
  * screen x = 2X+31 and its top at screen y = Y. */
-#define FIELD_X      144
-#define TEXT_Y       76                                   /* top of the strip: the 512x360 picture is centred in 400 rows */
+#define FIELD_X      208
+#define TEXT_Y       66                                   /* top of the strip: the 512x360 picture is centred in 400 rows */
 #define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)
-#define SCR_X(gx)    (FIELD_X + 32 + (gx) * 4)            /* game x (0 = left edge of cell 0) -> screen x */
-#define SCR_Y(gy)    (FIELD_Y + (gy) * 3)
-#define SPR_REG_X(sx) (((sx) - 31) / 2)
 
 static uint16_t base_scr[SCREEN_ROWS][FIELD_CH_COLS];   /* the plain map: dirt and tunnels */
 static uint16_t scr[SCREEN_ROWS][FIELD_CH_COLS];        /* this frame's map, with the copies in it */
@@ -328,18 +323,12 @@ static void draw_ball(void)
     draw_box(bx + 1, by + 1, 2, 1, COL_FLAME3);                                     /* seam */
 }
 
-/* ------------------------------------------------------------ Doug's sprite -- */
-static void show_doug(void)
+/* ----------------------------------------------------------------- Doug -- */
+static void draw_doug(void)
 {
-    uint8_t frame = pdir * 2 + (pmoving ? ((panim >> 2) & 1) : 0);
-    uint16_t ptr = (uint16_t)(SPRITE_DATA >> 6) + (uint16_t)frame * (SPRITE_BYTES / 64);
-    uint16_t sx = SPR_REG_X(SCR_X(px)), sy = SCR_Y(py);
-    rowbuf[0] = (uint8_t)ptr; rowbuf[1] = (uint8_t)(ptr >> 8);
-    dma_copy(rowbuf, 2, 0, SPRITE_PTRS);
-    POKE(0xD000, (uint8_t)sx);
-    POKE(0xD010, (sx >> 8) ? 0x01 : 0x00);
-    POKE(0xD001, (uint8_t)sy);
-    POKE(0xD077, (sy >> 8) ? 0x01 : 0x00);           /* top bit of sprite 0's Y */
+    uint8_t f = (frame_ct >> 2) & 1;
+    uint8_t idx = (state == ST_DYING) ? (uint8_t)(SPR_DOUG_X0 + f) : (uint8_t)(SPR_DOUG_0_0 + pdir * 2 + (pmoving ? ((panim >> 2) & 1) : 0));
+    draw_soft(idx, 8 + px, py, 0, 8);
 }
 
 /* ------------------------------------------------------------------- HUD -- */
@@ -420,7 +409,7 @@ void render_frame(void)
     for (i = 0; i < MAXE; ++i)
         if (e_state[i] != ES_NONE) draw_enemy(i);
     draw_ball();
-    show_doug();
+    draw_doug();
     commit_and_show();
 }
 
@@ -444,14 +433,13 @@ void render_init(void)
     POKE(0xD06F, PEEK(0xD06F) | 0x80);               /* 60 Hz (NTSC) timing, so two frames are exactly one 30 Hz game tick */
     wait_frame(); wait_frame(); wait_frame();        /* let the mode change settle before the registers that it resets are set */
     POKE(0xD030, PEEK(0xD030) | 0x04);               /* colours 0-15 come from the palette RAM too */
-    /* palette bank 1 (mapped in) is for the characters; bank 2 is for the sprites */
+    /* palette bank 1 (mapped in) is for the characters */
     set_palette(0x40 | 0x10 | 0x08, palette_rgb, 256);
-    set_palette(0x80 | 0x10 | 0x08, doug_pal, 16);
     POKE(0xD070, 0x10 | 0x08);                       /* characters use bank 1, sprites bank 2 */
     POKE(0xD020, BLANK_PIXEL); POKE(0xD021, BLANK_PIXEL);
     POKE(0xD031, PEEK(0xD031) | 0x88);               /* H640 + V400: 640x400. (Writing $D031 resets the registers below.) */
     POKE(0xD054, 0x05);                              /* CHR16 (13-bit character numbers) + full-colour for chars > $FF */
-    POKE(0xD05A, XSCL);                              /* characters 4x wide */
+    POKE(0xD05A, XSCL);                              /* characters 3x wide */
     POKE(0xD05E, FIELD_CH_COLS);                     /* characters per row */
     POKE(0xD058, FIELD_CH_COLS * 2); POKE(0xD059, 0);/* bytes per row */
     POKE(0xD07B, HUD_ROWS + SCREEN_ROWS - 1);                   /* rows, minus one */
@@ -469,16 +457,7 @@ void render_init(void)
     build_tiles();
     dma_fill(0, TOTAL_CHARS * 2, 0xFF, 0x80000UL + COLOUR_OFS);       /* colour RAM: plain characters */
 
-    /* Doug: every frame, then sprite 0 */
-    dma_copy(doug_frames, (uint16_t)DOUG_FRAMES * SPRITE_BYTES, 0, SPRITE_DATA);
-    POKE(0xD06C, (uint8_t)SPRITE_PTRS);
-    POKE(0xD06D, (uint8_t)(SPRITE_PTRS >> 8));
-    POKE(0xD06E, 0x80 | (uint8_t)(SPRITE_PTRS >> 16));   /* 16-bit sprite pointers, list at $15F00 */
-    POKE(0xD06B, 0x01);                              /* sprite 0: full colour (16 pixels wide) */
-    POKE(0xD027, 0x00);                              /* in full-colour mode this register's low nybble is the transparent pixel value */
-    POKE(0xD055, 0x01); POKE(0xD056, 24);            /* sprite 0 is 24 rows tall */
-    POKE(0xD076, 0x01);                              /* native vertical resolution for sprite 0 */
-    POKE(0xD015, 0x01);                              /* sprite 0 on */
+    POKE(0xD015, 0x00);                              /* no hardware sprites: Doug is drawn like the others */
 
     for (i = 0; i < HUD_ROWS; ++i) {                 /* the strip's character numbers, one row at a time, into both buffers */
         uint8_t k;

@@ -136,3 +136,6 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
 - The head bob is twice as fast (a nod on each snare hit and on the beat between: `beat_tick` compares `beat_acc` with both halves of the period) and
   only while a sprite is moving: `pmv` for Doug and `e_mv[]` for the enemies are held for a few ticks after each step, because digging and the
   slower enemies move only every other tick and the nod would flicker otherwise.
+- Walking enemies find Doug with `bfs_dir` (a breadth first search over open cells, shared with the fleeing code) in `choose_dir`: if the
+  tunnels connect them to Doug (or to a headstone, for a Vumpire) they take the first step of the shortest way, 92% of the time at each
+  junction; otherwise they steer greedily with a few cells of noise, as before. Sealed enemies therefore stay put until a path is opened.

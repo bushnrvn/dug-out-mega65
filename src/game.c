@@ -422,6 +422,8 @@ static unsigned char open_cell(signed char c, signed char r)
 }
 
 
+static unsigned char bfs_dir(unsigned char i, unsigned char goal);
+
 static void choose_dir(unsigned char i)
 {
     signed char c = e_x[i] >> 3, r = e_y[i] >> 3;
@@ -433,7 +435,8 @@ static void choose_dir(unsigned char i)
         for (d = 0; d < MAXC; ++d)
             if (c_on[d]) { tc = (c_x[d] + 4) >> 3; tr = (c_y[d] + 4) >> 3; break; }
     }
-    dist = rng();                                /* aim a few cells off Doug so the routes are not the same every time */
+    if (tc >= 0 && tc < COLS && tr >= 0 && tr < ROWS && rng() < 235 && bfs_dir(i, (unsigned char)((tr << 4) | tc))) return;     /* a way there along the tunnels: take it */
+    dist = rng();                                /* no way (or a sudden whim): aim a few cells off Doug so the routes are not the same every time */
     tc += (dist & 7) - 3;
     tr += ((dist >> 3) & 7) - 3;
     for (d = 0; d < 4; ++d) {
@@ -585,9 +588,9 @@ static void enemy_escape(unsigned char i)
     --enemies_left;
 }
 
-/* the way to the top along open tunnels (breadth first search from the enemy's cell to any cell of row 0).
+/* the way along open tunnels (breadth first search from the enemy's cell to the goal cell, or to any cell of row 0 if goal is 255: the top).
  * Sets e_dir and returns 1, or returns 0 if there is no way: a sealed cave stays sealed. */
-static unsigned char flee_dir(unsigned char i)
+static unsigned char bfs_dir(unsigned char i, unsigned char goal)
 {
     unsigned char head = 0, tail = 0, cur, c, r, d, nc, nr, n, start, d0 = 0;
     for (n = 0; n < sizeof fl_par; ++n) fl_par[n] = 0;
@@ -595,7 +598,7 @@ static unsigned char flee_dir(unsigned char i)
     fl_q[tail++] = start; fl_par[start] = 5;
     while (head != tail) {
         cur = fl_q[head++]; c = cur & 15; r = cur >> 4;
-        if (r == 0 && cur != start) {                       /* found the top: walk back to the first step */
+        if (goal == 255 ? (r == 0 && cur != start) : (cur == goal && cur != start)) {      /* found it: walk back to the first step */
             while (cur != start) {
                 d = fl_par[cur] - 1; d0 = d;
                 cur = (unsigned char)(((((signed char)(cur >> 4)) - DY[d]) << 4) | (((signed char)(cur & 15)) - DX[d]));
@@ -693,7 +696,7 @@ static void enemy_update(unsigned char i)
                     return;
                 }
             }
-            if (!(e_flee[i] && flee_dir(i))) choose_dir(i);
+            if (!(e_flee[i] && bfs_dir(i, 255))) choose_dir(i);
         }
         d = e_dir[i];
         /* enemies only walk through tunnels (choose_dir guarantees the next cell) */

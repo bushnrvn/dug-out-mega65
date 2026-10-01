@@ -216,6 +216,9 @@ int main(void)
     enemies_left = 0;
 #endif
 #endif
+#ifdef TEST_SEEK
+    e_x[0] = 6 << 3; e_y[0] = 3 << 3; M(6, 3) = 0; px = 11 << 3; py = 0; pdir = DIR_R;        /* enemy 0 is below Doug's shaft; Doug stands on the surface, to the right: its only way to him is up the shaft and along the surface */
+#endif
 #ifdef TEST_FLEE
     enemies_left = 2; score_h = 10;                  /* two left and 1,000 points: enemy 0 has an open way to the top and should run it, costing its value; the sealed ones stay put */
     e_x[0] = 6 << 3; e_y[0] = 3 << 3; M(6, 3) = 0; px = 10 << 3; py = 2 << 3;      /* enemy 0 stands just below Doug's shaft, with an open way to the surface; Doug is moved aside */

@@ -38,7 +38,7 @@ fidx:   .byte 0
 ; whatever is mapped over $8000 and up.
 _hs_buf: .byte 0, 0, 0, 0, 0
 save_busy: .byte 0                  ; 1 while the best score is being saved: the sound interrupt does nothing then (the ROMs hide its variables)
-HS_END = *
+HS_END = _hs_buf + 5               ; the file is the five bytes above (not save_busy, which comes next: it must never be saved or loaded)
 hs_name: .byte "@0:hiscore"
 HS_NAME_LEN = * - hs_name
 hs_load_name: .byte "hiscore"
@@ -119,6 +119,8 @@ next:   stx     fidx
         ldx     #<_hs_buf
         ldy     #>_hs_buf
         jsr     LOAD
+        lda     #0                  ; a file saved by 1.4.0 was six bytes and loaded over save_busy, which would have silenced the sound for good
+        sta     save_busy
 
         lda     $D030
         and     #$C7                ; clear ROM8 ($8000), ROMA ($A000), ROMC ($C000)

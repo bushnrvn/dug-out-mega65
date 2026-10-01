@@ -124,7 +124,7 @@ _snd_init:
         lda     $D011
         and     #$7F
         sta     $D011
-        lda     #0
+        lda     #$20                ; (not line 0: after the switch to 60 Hz the chip's first raster line is 7, so line 0 never comes)
         sta     $D012
         lda     #$01
         sta     $D01A

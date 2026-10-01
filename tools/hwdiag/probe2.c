@@ -34,17 +34,21 @@ int main(void)
     uint16_t n = 0;
     __asm__("sei");
     POKE(0x00, 65);
+    tclear();
+    POKE(0xD02F, 0x47); POKE(0xD02F, 0x53);
+    POKE(0xD06F, PEEK(0xD06F) | 0x80);               /* the same 60 Hz switch as the game */
+    wait_frame(); wait_frame(); wait_frame();
     timer_start();
     dma_copy28(0x80, 0x40000UL, 0, 0x1A000UL, 16384);
     snd_init();
     snd_song(SONG_TITLE, 1);
     for (;;) {
         wait_frame(); ++n;
-        tclear();
+        tpos = 0;                                    /* rewrite in place: a full clear takes longer than a frame */
         ts("sound + input probe\n\n");
         kv("irq count", snd_log[15]); kv("d012", PEEK(0xD012)); kv("d019", PEEK(0xD019)); kv("d01a", PEEK(0xD01A)); tc('\n');
         kv("fffe", PEEK(0xFFFE)); kv("ffff", PEEK(0xFFFF)); kv("0314", PEEK(0x0314)); kv("0315", PEEK(0x0315)); kv("d030", PEEK(0xD030)); tc('\n');
-        kv("d41b", PEEK(0xD41B)); kv("d418", PEEK(0xD418)); kv("frames", (uint8_t)n); tc('\n');
+        kv("d06f", PEEK(0xD06F)); kv("d41b", PEEK(0xD41B)); kv("d418", PEEK(0xD418)); kv("frames", (uint8_t)n); tc('\n');
         tc('\n'); ts("keyboard matrix, dc01 per column (ff = nothing down):\n");
         POKE(0xDC02, 0xFF); POKE(0xDC03, 0x00);
         for (c = 0; c < 8; ++c) {

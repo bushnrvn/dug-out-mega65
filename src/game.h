@@ -39,6 +39,8 @@ extern unsigned char ball_on, ball_x, ball_y, ball_dir, ball_dist, throw_cd, bal
 extern unsigned char e_state[MAXE], e_type[MAXE], e_x[MAXE], e_y[MAXE], e_dir[MAXE], e_face[MAXE];
 extern unsigned char e_infl[MAXE], e_timer[MAXE], e_acc[MAXE], e_homec[MAXE], e_homer[MAXE], e_flen[MAXE];
 extern unsigned char e_flee[MAXE], e_pts[MAXE];
+extern unsigned char pmv;                  /* ticks left in which Doug counts as moving (for his head bob) */
+extern unsigned char e_mv[MAXE];           /* ticks left in which an enemy counts as moving (for its head bob) */
 extern unsigned char e_prevc[MAXE], e_prevr[MAXE];
 extern unsigned char c_on[MAXC], c_slot[MAXC], c_x[MAXC], c_y[MAXC];
 extern unsigned char enemies_left, espeed;

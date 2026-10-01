@@ -60,6 +60,8 @@ unsigned char px, py, pdir, panim, pmoving;
 unsigned char ball_on, ball_x, ball_y, ball_dir, ball_dist, throw_cd, ball_dirt;
 unsigned char e_state[MAXE], e_type[MAXE], e_x[MAXE], e_y[MAXE], e_dir[MAXE], e_face[MAXE];
 unsigned char e_infl[MAXE], e_timer[MAXE], e_acc[MAXE], e_homec[MAXE], e_homer[MAXE], e_flen[MAXE];
+unsigned char pmv;
+unsigned char e_mv[MAXE];
 unsigned char e_flee[MAXE], e_pts[MAXE];      /* running for the top (the last two enemies), and what it would cost if they get there (hundreds) */
 unsigned char e_prevc[MAXE], e_prevr[MAXE];
 unsigned char c_on[MAXC], c_slot[MAXC], c_x[MAXC], c_y[MAXC];
@@ -69,8 +71,8 @@ unsigned char pop_t[MAXP], pop_x[MAXP], pop_y[MAXP];
 unsigned int pop_v[MAXP];
 
 /* The beat. The theme's snare hits fall on a grid 52.15 frames apart (26.075 game ticks), the first 26.9 frames into the song, and the song
- * (8371 frames) loops. beat_acc is how far into a beat it is, in 1/256 ticks; bob is set for the first part of each beat, when the player and
- * the walkers nod their heads. */
+ * (8371 frames) loops. beat_acc is how far into a snare period it is, in 1/256 ticks; bob is set for the first part of each half of it, so the
+ * head nods on every snare hit and on the beat between (when the player and the walkers are moving). */
 #define BEAT_FP    6675u
 #define BEAT_START (6675u - 3443u)
 #define BEAT_WIN   1280u
@@ -88,7 +90,7 @@ void beat_tick(void)
         if (beat_acc >= BEAT_FP) beat_acc -= BEAT_FP;
         if (song_t >= SONG_LEN) { song_t -= SONG_LEN; beat_acc = BEAT_START + song_t * 128u; }      /* the song starts again, and so does the grid */
     }
-    bob = (beat_on && (state == ST_PLAY || state == ST_PAUSE) && beat_acc < BEAT_WIN);
+    bob = (beat_on && (state == ST_PLAY || state == ST_PAUSE) && (beat_acc < BEAT_WIN || (beat_acc >= BEAT_FP / 2 && beat_acc < BEAT_FP / 2 + BEAT_WIN)));
 }
 unsigned char gold_on, gold_c, gold_r;
 
@@ -171,7 +173,7 @@ static void reset_enemies_home(void)
     unsigned char i;
     for (i = 0; i < MAXE; ++i) {
         if (e_state[i] == ES_NONE) continue;
-        e_state[i] = (e_type[i] == 2) ? ES_GHOST : ES_WALK; e_flee[i] = 0;
+        e_state[i] = (e_type[i] == 2) ? ES_GHOST : ES_WALK; e_flee[i] = 0; e_mv[i] = 0;
         e_x[i] = e_homec[i] << 3; e_y[i] = e_homer[i] << 3;
         e_dir[i] = DIR_R; e_face[i] = DIR_R; e_prevc[i] = 255; e_prevr[i] = 255;
         e_infl[i] = 0; e_timer[i] = 0; e_acc[i] = 0;
@@ -190,7 +192,7 @@ void build_level(void)
     if (ne > MAXE) ne = MAXE;
     if (level >= INNINGS) ne = 1;               /* the final inning is the Mascot, alone */
 
-    for (i = 0; i < MAXE; ++i) { e_state[i] = ES_NONE; e_flee[i] = 0; }
+    for (i = 0; i < MAXE; ++i) { e_state[i] = ES_NONE; e_flee[i] = 0; e_mv[i] = 0; }
     for (i = 0; i < MAXC; ++i) c_on[i] = 0;
     for (i = 0; i < ne; ++i) {
         /* each pocket gets its own row, width, column and sometimes a shaft: nothing sits in a fixed slot */
@@ -381,6 +383,7 @@ static void player_update(void)
     }
 
     pmoving = moved;
+    if (moved) pmv = 4; else if (pmv) --pmv;          /* digging is half speed, so Doug moves every other tick: hold "moving" a few ticks for the head bob */
     if (moved) {
         ++panim;
         c = (px + 4) >> 3; r = (py + 4) >> 3;
@@ -623,6 +626,8 @@ static void enemy_update(unsigned char i)
         e_pts[i] = (r <= 3) ? 2 : (r <= 6) ? 3 : (r <= 9) ? 4 : 5;      /* what a kill here would pay */
     }
 
+    if (e_mv[i]) --e_mv[i];
+
     switch (st) {
     case ES_WALK:
         if (e_type[i] == 0 && !e_flee[i]) {
@@ -669,7 +674,7 @@ static void enemy_update(unsigned char i)
                 }
             }
             d = e_dir[i];
-            e_x[i] = x + DX[d]; e_y[i] = y + DY[d];
+            e_x[i] = x + DX[d]; e_y[i] = y + DY[d]; e_mv[i] = 6;
             if (d < 2) e_face[i] = d;
             break;
         }
@@ -692,7 +697,7 @@ static void enemy_update(unsigned char i)
         }
         d = e_dir[i];
         /* enemies only walk through tunnels (choose_dir guarantees the next cell) */
-        e_x[i] = x + DX[d]; e_y[i] = y + DY[d];
+        e_x[i] = x + DX[d]; e_y[i] = y + DY[d]; e_mv[i] = 6;
         if (d < 2) e_face[i] = d;
         if (e_flee[i] && e_y[i] == 0) enemy_escape(i);      /* out through the top of Doug's shaft */
         break;

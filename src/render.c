@@ -291,10 +291,10 @@ static void draw_mark(uint8_t i, int16_t x, int16_t y)
     draw_soft(S_MARK[m], x, y - ((e_type[i] == 4) ? 12 : 8), 0, 6);
 }
 
-/* a sprite whose top hd rows (the head) drop a pixel on the beat */
-static void draw_bob(uint8_t idx, int16_t x, int16_t y, uint8_t hd, uint8_t h)
+/* a sprite whose top hd rows (the head) drop a pixel on the beat, while it is moving */
+static void draw_bob(uint8_t idx, int16_t x, int16_t y, uint8_t hd, uint8_t h, uint8_t moving)
 {
-    if (!bob) { draw_soft(idx, x, y, 0, h); return; }
+    if (!(bob && moving)) { draw_soft(idx, x, y, 0, h); return; }
     draw_soft(idx, x, y, hd, h - hd);
     draw_soft(idx, x, y + 1, 0, hd);
 }
@@ -310,10 +310,10 @@ static void draw_enemy(uint8_t i)
     }
     switch (st) {
     case ES_WALK:
-        if (e_type[i] == 4) { draw_bob(S_MASCOT[k], x - 4, y - 4, 10, 16); if (e_infl[i]) draw_mark(i, x, y); }
-        else if (e_type[i] == 3) draw_bob(S_GK[k], x, y, 5, 8);
+        if (e_type[i] == 4) { draw_bob(S_MASCOT[k], x - 4, y - 4, 10, 16, e_mv[i]); if (e_infl[i]) draw_mark(i, x, y); }
+        else if (e_type[i] == 3) draw_bob(S_GK[k], x, y, 5, 8, e_mv[i]);
         else if (e_type[i])      draw_soft(S_EMB[k], x, y, 0, 8);
-        else                     draw_bob(S_GRUB[k], x, y, 5, 8);
+        else                     draw_bob(S_GRUB[k], x, y, 5, 8, e_mv[i]);
         break;
     case ES_FLAME:
         if (e_type[i] == 0) {                                            /* ritual: the Vumpire glows red */
@@ -401,7 +401,7 @@ static void draw_doug(void)
     uint8_t f = (frame_ct >> 2) & 1;
     uint8_t idx = (state == ST_DYING) ? (uint8_t)(SPR_DOUG_X0 + f) : (uint8_t)(SPR_DOUG_0_0 + pdir * 2 + (pmoving ? ((panim >> 2) & 1) : 0));
     if (state == ST_DYING) draw_soft(idx, 8 + px, py, 0, 8);
-    else draw_bob(idx, 8 + px, py, 5, 8);
+    else draw_bob(idx, 8 + px, py, 5, 8, pmv);
 }
 
 /* ------------------------------------------------------------------- HUD -- */

@@ -133,3 +133,6 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
 - Saving the best score lays the ROMs over $8000-$CFFF, which hides the sound player's variables (they live up there). If the raster interrupt came
   in during the save, the player read ROM bytes as its sound-effect pointer and Xemu stopped on "Unhandled memory read ... $607C06" at game over.
   The save routine now sets `save_busy` (in the low, always-visible ONCE segment) and the interrupt does nothing while it is set.
+- The head bob is twice as fast (a nod on each snare hit and on the beat between: `beat_tick` compares `beat_acc` with both halves of the period) and
+  only while a sprite is moving: `pmv` for Doug and `e_mv[]` for the enemies are held for a few ticks after each step, because digging and the
+  slower enemies move only every other tick and the nod would flicker otherwise.

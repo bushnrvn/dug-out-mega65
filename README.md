@@ -44,5 +44,5 @@ Set `XEMU` to your `xmega65` binary and `M65_ROM` to a MEGA65 or C65 ROM image y
 
 ## Credits
 
-Game, art and design: bushnrvn. Built with cc65. Music from public domain scores: Grieg's Hall of the Mountain
+Game design: bushnrvn. Built with cc65. Music from public domain scores: Grieg's Hall of the Mountain
 King and Take Me Out to the Ball Game.

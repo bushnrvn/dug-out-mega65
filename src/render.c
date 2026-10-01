@@ -326,6 +326,8 @@ static void show_doug(void)
 static uint8_t hud_lives, hud_level, hud_drawn;
 static uint16_t hud_score_h; static uint8_t hud_score_t;
 
+static const uint8_t HUD_SRC_ROW[48] = { 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15, 15, 15 };
+
 static void hud_text(uint8_t x, uint8_t y, const char *str, uint8_t set)
 {
     uint8_t ch, idx, i, j;
@@ -349,10 +351,10 @@ static void hud_text(uint8_t x, uint8_t y, const char *str, uint8_t set)
 
 static void hud_build(void)
 {
-    uint8_t i, j, n, cx, cy, py, px;
+    uint8_t i, j, n, cx, cy, py;
     uint16_t v;
     char buf[8];
-    memset(hud_pic, COL_INK, sizeof hud_pic);
+    memset(hud_pic, COL_INK, 16 * 128);
     memset(hud_pic[15], COL_RIM, 128);
     v = score_h;
     for (i = 5; i > 0; --i) { buf[i - 1] = '0' + (v % 10); v /= 10; }
@@ -370,8 +372,7 @@ static void hud_build(void)
     for (cy = 0; cy < HUD_ROWS; ++cy)
         for (cx = 0; cx < FIELD_CH_COLS; ++cx) {
             for (py = 0; py < 8; ++py)
-                for (px = 0; px < 8; ++px)
-                    charbuf[py * 8 + px] = hud_pic[(cy * 8 + py) / 3][cx * 8 + px];
+                memcpy(charbuf + py * 8, hud_pic[HUD_SRC_ROW[cy * 8 + py]] + cx * 8, 8);
             dma_copy(charbuf, 64, 0, ((uint32_t)(HUD_CH0 + cy * FIELD_CH_COLS + cx)) << 6);
         }
     hud_score_h = score_h; hud_score_t = score_t; hud_lives = lives; hud_level = level; hud_drawn = 1;

@@ -11,6 +11,8 @@
 #define TEST_TICKS 240
 #endif
 
+extern uint16_t frames_seen;
+
 int main(void)
 {
 #ifdef TEST_EXIT
@@ -37,7 +39,11 @@ int main(void)
 #endif
         wait_frame();                                /* about 25 ticks a second on PAL */
 #ifdef TEST_EXIT
+#ifdef TEST_DIG
+        in = (n < 60) ? INPUT_MASK_DOWN : (n < 120) ? INPUT_MASK_LEFT : (n < 180) ? INPUT_MASK_DOWN : INPUT_MASK_RIGHT;
+#else
         in = 0;                                      /* Doug stands still; the enemies walk */
+#endif
 #else
         in = read_input();
 #endif
@@ -65,6 +71,8 @@ int main(void)
         render_frame();                              /* waits for the next frame itself, so ticks are 2 frames apart */
     }
 #ifdef TEST_EXIT
+    score_h = frames_seen; score_t = 0; ++frame_ct;          /* the frame count shows up as the score */
+    render_frame();
     POKE(0xD6CF, 0x42);                              /* Xemu in -testing mode exits when this is written */
     for (;;) { }
 #endif

@@ -26,8 +26,11 @@ void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t
     POKE(0xD705, (uint8_t)(uint16_t)dmalist);   /* writing the LSB here runs an enhanced job */
 }
 
+uint16_t frames_seen;
+
 void wait_frame(void)
 {
+    ++frames_seen;
     while (PEEK(0xD012) != 0xFF) { }
     while (PEEK(0xD012) == 0xFF) { }
 }

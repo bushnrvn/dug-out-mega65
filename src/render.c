@@ -21,6 +21,7 @@
 #define N_TILES      (N_FIELD + 16)
 #define SY           4                       /* screen rows per game pixel (and character rows per tile row) */
 #define SCREEN_ROWS  (FIELD_CH_ROWS * SY)
+#define TITLE_CH0    5120u                   /* the title picture's characters: chip RAM $50000 (bank 5), 4 per tile like the field */
 #define HUD_H        12                      /* the score strip above the field, in game pixels */
 #define HUD_ROWS     (HUD_H * SY / 8)
 #define HUD_CHARS    (FIELD_CH_COLS * HUD_ROWS)
@@ -81,10 +82,18 @@ static uint16_t tile_at(uint8_t cc, uint8_t rr)
     return (uint16_t)rr * FIELD_CH_COLS + cc;                   /* the dirt picture */
 }
 
+static uint8_t scene_title;                              /* 1 while the title screen is up */
+
 static void rebuild_base(void)
 {
     uint8_t rr, cc, k;
     uint16_t tile;
+    if (scene_title) {
+        for (rr = 0; rr < FIELD_CH_ROWS; ++rr)
+            for (cc = 0; cc < FIELD_CH_COLS; ++cc)
+                for (k = 0; k < SY; ++k) base_scr[rr * SY + k][cc] = TITLE_CH0 + ((uint16_t)rr * FIELD_CH_COLS + cc) * SY + k;
+        return;
+    }
     for (rr = 0; rr < FIELD_CH_ROWS; ++rr)
         for (cc = 0; cc < FIELD_CH_COLS; ++cc) {
             tile = tile_at(cc, rr);
@@ -139,17 +148,16 @@ void blit_run(void);
 
 /* rows r0..r0+rows-1 of a sprite, with its top-left at plane position (X, Y). Each row is cut into runs that lie in one
  * character; the character copy is only looked up (or made) once a run has a visible pixel. */
-static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
+static void draw_img(const uint8_t *px, uint8_t w, uint8_t h, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
 {
-    const SoftSprite *s = &soft_sprites[idx];
-    uint8_t w = s->w, h = s->h, sy, sx, sxe, take, k, xx, x0 = (uint8_t)X, cr, yr;
+    uint8_t sy, sx, sxe, take, k, xx, x0 = (uint8_t)X, cr, yr;
     const uint8_t *src;
     int16_t yy = Y + r0;
     if ((uint8_t)(r0 + rows) < h) h = r0 + rows;
     if (X >= 128 || X + w <= 0) return;
     sx = (X < 0) ? (uint8_t)(-X) : 0;                  /* clip to the picture */
     sxe = (X + w > 128) ? (uint8_t)(128 - X) : w;
-    src = s->px + (uint16_t)r0 * w;
+    src = px + (uint16_t)r0 * w;
     for (sy = r0; sy < h; ++sy, ++yy, src += w) {
         if ((uint16_t)yy >= 104) continue;
         cr = (uint8_t)yy >> 1;
@@ -165,6 +173,12 @@ static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t row
             }
         }
     }
+}
+
+static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
+{
+    const SoftSprite *s = &soft_sprites[idx];
+    draw_img(s->px, s->w, s->h, X, Y, r0, rows);
 }
 
 #define FRAME_T   16832                      /* timer ticks in a 60 Hz frame (measured in Xemu) */
@@ -307,6 +321,24 @@ static void draw_ball(void)
     draw_box(bx + 1, by + 1, 2, 1, COL_FLAME3);                                     /* seam */
 }
 
+/* text on the picture, with the game's font (set 0 = cream, 1 = gold) */
+static void draw_text(int16_t x, int16_t y, const char *str, uint8_t set)
+{
+    uint8_t ch, idx;
+    while ((ch = (uint8_t)*str++) != 0) {
+        if (ch >= 'A' && ch <= 'Z') idx = ch - 'A';
+        else if (ch >= '0' && ch <= '9') idx = 26 + ch - '0';
+        else if (ch == '-') idx = 36;
+        else if (ch == ':') idx = 37;
+        else if (ch == '!') idx = 38;
+        else if (ch == '.') idx = 39;
+        else if (ch == '\'') idx = 40;
+        else { x += 4; continue; }
+        draw_img(font_px[set * 41 + idx], 4, 6, x, y, 0, 6);
+        x += 4;
+    }
+}
+
 /* ----------------------------------------------------------------- Doug -- */
 static void draw_doug(void)
 {
@@ -355,15 +387,17 @@ static void hud_build(void)
     char buf[8];
     memset(hud_pic, COL_INK, HUD_H * 128);
     memset(hud_pic[HUD_H - 1], COL_RIM, 128);
-    v = score_h;
+    v = scene_title ? hi_h : score_h;
     for (i = 5; i > 0; --i) { buf[i - 1] = '0' + (v % 10); v /= 10; }
-    buf[5] = '0' + score_t; buf[6] = '0'; buf[7] = 0;
-    hud_text(10, HUD_TY, "RUNS", 1);
+    buf[5] = '0' + (scene_title ? hi_t : score_t); buf[6] = '0'; buf[7] = 0;
+    hud_text(10, HUD_TY, scene_title ? "BEST" : "RUNS", 1);
     hud_text(30, HUD_TY, buf, 0);
-    hud_text(62, HUD_TY, "INN", 1);
-    buf[0] = '0' + (level / 10) % 10; buf[1] = '0' + level % 10; buf[2] = 0;
-    hud_text(74, HUD_TY, buf, 0);
-    for (n = 0; n < lives && n < 5; ++n)
+    if (!scene_title) {
+        hud_text(62, HUD_TY, "INN", 1);
+        buf[0] = '0' + (level / 10) % 10; buf[1] = '0' + level % 10; buf[2] = 0;
+        hud_text(74, HUD_TY, buf, 0);
+    }
+    for (n = 0; n < (scene_title ? 0 : lives) && n < 5; ++n)
         for (j = 0; j < 6; ++j)
             for (i = 0; i < 8; ++i)
                 if (life_px[j * 8 + i]) hud_pic[HUD_TY + j][121 - (n << 3) - 8 + i] = life_px[j * 8 + i];
@@ -374,29 +408,47 @@ static void hud_build(void)
                 memcpy(charbuf + py * 8, hud_pic[HUD_SRC_ROW[cy * 8 + py]] + cx * 8, 8);
             dma_copy(charbuf, 64, 0, ((uint32_t)(HUD_CH0 + cy * FIELD_CH_COLS + cx)) << 6);
         }
-    hud_score_h = score_h; hud_score_t = score_t; hud_lives = lives; hud_level = level; hud_drawn = 1;
+    hud_score_h = scene_title ? hi_h : score_h; hud_score_t = scene_title ? hi_t : score_t; hud_lives = lives; hud_level = level; hud_drawn = 1;
 }
 
 static void hud_update(void)
 {
-    if (!hud_drawn || score_h != hud_score_h || score_t != hud_score_t || lives != hud_lives || level != hud_level)
+    if (!hud_drawn || (scene_title ? hi_h : score_h) != hud_score_h || (scene_title ? hi_t : score_t) != hud_score_t || lives != hud_lives || level != hud_level)
         hud_build();
+}
+
+/* the title screen: Doug runs along the long tunnel with a Vumpire and a Heater after him. Positions repeat every 128 half-ticks,
+ * which matches the 8-bit tick counter, so the chase loops without a jump. */
+static void draw_title(void)
+{
+    uint8_t t = frame_ct >> 1, f = (frame_ct >> 2) & 1, p;
+    p = t & 127;
+    if (p < 112) draw_soft(SPR_DOUG_0_0 + f, 8 + p, 72, 0, 8);
+    p = (t - 24) & 127;
+    if (p < 112) draw_soft(S_GRUB[f], 8 + p, 72, 0, 8);
+    p = (t - 44) & 127;
+    if (p < 112) draw_soft(S_EMB[f], 8 + p, 72, 0, 8);
+    if ((frame_ct & 32) == 0) draw_text(44, 40, "PUSH START", 1);
 }
 
 void render_frame(void)
 {
-    uint8_t i;
+    uint8_t i, want_title = (state == ST_TITLE);
+    if (want_title != scene_title) { scene_title = want_title; field_dirty = 1; hud_drawn = 0; }
     if (field_dirty) { rebuild_base(); field_dirty = 0; }
     hud_update();
     dyn_n = 0;
     memset(dyn_of, 0xFF, sizeof dyn_of);
-    draw_rocks();
-    for (i = 0; i < MAXC; ++i)
-        if (c_on[i]) draw_soft(SPR_TOMB, 8 + c_x[i], c_y[i], 0, 8);
-    for (i = 0; i < MAXE; ++i)
-        if (e_state[i] != ES_NONE) draw_enemy(i);
-    draw_ball();
-    draw_doug();
+    if (scene_title) draw_title();
+    else {
+        draw_rocks();
+        for (i = 0; i < MAXC; ++i)
+            if (c_on[i]) draw_soft(SPR_TOMB, 8 + c_x[i], c_y[i], 0, 8);
+        for (i = 0; i < MAXE; ++i)
+            if (e_state[i] != ES_NONE) draw_enemy(i);
+        draw_ball();
+        draw_doug();
+    }
     commit_and_show();
 }
 
@@ -448,6 +500,7 @@ void render_init(void)
     POKE(0xD05D, PEEK(0xD05D) & 0xC0);
 
     build_tiles();
+    dma_copy28(0x80, 0x10000UL, 0, (uint32_t)TITLE_CH0 << 6, 53248);      /* the title picture: attic file 1 -> characters */
     dma_fill(0, TOTAL_CHARS * 2, 0xFF, 0x80000UL + COLOUR_OFS);       /* colour RAM: plain characters */
 
     POKE(0xD015, 0x00);                              /* no hardware sprites: Doug is drawn like the others */

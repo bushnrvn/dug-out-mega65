@@ -26,6 +26,18 @@ static uint8_t script_input(void)
 }
 #endif
 
+/* a new game from the title screen */
+static void new_game(void)
+{
+    level = 1; lives = 3; score_h = 0; score_t = 0; next_life_h = 300;
+#ifndef TEST_EXIT
+    run_seed = (timer_now() ^ ((uint16_t)frame_ct << 8)) | 1u;      /* new caves every game */
+#endif
+    score_dirty = 1;
+    build_level();
+    state = ST_PLAY; state_timer = 0;
+}
+
 int main(void)
 {
 #ifdef TEST_EXIT
@@ -36,7 +48,14 @@ int main(void)
     POKE(0x00, 65);                                  /* 40 MHz */
     timer_start();                                   /* a free-running clock: paces the game and seeds the caves */
 
-    level = TEST_LEVEL; lives = 3; state = ST_PLAY;
+    level = TEST_LEVEL; lives = 3;
+#if defined(TEST_EXIT) && !defined(TEST_TITLE)
+    state = ST_PLAY;                                 /* test builds go straight into the game, unless asked for the title */
+#elif defined(TEST_TITLE)
+    state = ST_TITLE;
+#else
+    state = ST_TITLE;
+#endif
 #ifdef TEST_EXIT
     run_seed = 4661u;                                /* the same caves every test run */
 #else
@@ -66,7 +85,11 @@ int main(void)
         player1_new_buttons = in & ~old;
         old = in;
         ++frame_ct;
-        if (state == ST_PLAY) {
+        if (state == ST_TITLE) {
+            if (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)) new_game();
+        } else if (state == ST_PAUSE) {
+            if (player1_new_buttons & INPUT_MASK_START) state = ST_PLAY;
+        } else if (state == ST_PLAY) {
             play_update();
         } else if (state == ST_DYING) {
             if (++state_timer > 40) {

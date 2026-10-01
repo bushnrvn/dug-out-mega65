@@ -14,13 +14,17 @@ SETNAM  = $FFBD
 LOAD    = $FFD5
 SETBNK  = $FF6B
 
-        .segment "ONCE"
+                .segment "ONCE"
 
-; the files, in attic order: name, length of the name
-names:  .byte "tiles"                ; lower case here is the disk's upper case (the assembler maps text to PETSCII)
-NAMES_END = *
-
-file_len: .byte 5
+; the files, in attic order (file n goes to attic bank n). Lower case here is the disk's upper case (the assembler maps
+; text to PETSCII).
+name0:  .byte "tiles"
+name1:  .byte "title"
+N_FILES = 2
+name_lo:  .byte <name0, <name1
+name_hi:  .byte >name0, >name1
+name_len: .byte 5, 5
+fidx:   .byte 0
 
 dmalist:                            ; one enhanced DMA job, copy bank 5 -> attic
         .byte $0B                   ; 11-byte list format
@@ -41,19 +45,23 @@ hide_roms:
         lda     #$53
         sta     $D02F
 
-        ; ---- load TILES (file 0): SETLFS(2, 8, 0), SETNAM("TILES"), SETBNK(5, 0), LOAD(0, $0100)
-        lda     #2
+        ldx     #0
+next:   stx     fidx
+        lda     #2                  ; SETLFS(2, 8, 0)
         ldx     #8
         ldy     #0
         jsr     SETLFS
-        lda     file_len
-        ldx     #<names
-        ldy     #>names
+        ldx     fidx                ; SETNAM(name, length)
+        lda     name_lo,x
+        pha
+        ldy     name_hi,x
+        lda     name_len,x
+        plx
         jsr     SETNAM
-        lda     #5                  ; data into bank 5 ...
+        lda     #5                  ; SETBNK: data into bank 5 ...
         ldx     #0                  ; ... the name is in bank 0
         jsr     SETBNK
-        lda     #0                  ; load (not verify)
+        lda     #0                  ; LOAD (not verify) at $0100
         ldx     #<$0100
         ldy     #>$0100
         jsr     LOAD
@@ -64,22 +72,24 @@ hide_roms:
         sec
         sbc     #$01
         sta     dm_cnt+1
+        lda     fidx
+        sta     dm_dbk              ; attic bank = file number
         lda     #0
-        sta     dm_dbk              ; attic bank 0
         sta     $D702               ; the list is in bank 0
         lda     #>dmalist
         sta     $D701
         lda     #<dmalist
         sta     $D705               ; run it
+        ldx     fidx
+        inx
+        cpx     #N_FILES
+        bne     next
 
         lda     $D030
         and     #$C7                ; clear ROM8 ($8000), ROMA ($A000), ROMC ($C000)
         sta     $D030
         rts
 
-fail:   sta     $0800
-        stx     $0801
-        sty     $0802
-        lda     #$42
-        sta     $D6CF
-f2:     jmp     f2
+fail:   lda     #2                  ; red border, then stop
+        sta     $D020
+        jmp     fail

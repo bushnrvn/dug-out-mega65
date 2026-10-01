@@ -40,7 +40,7 @@
  * The picture is 512x360 (strip and field), so to centre it the text area starts at 144,124. A sprite at register (X, Y) has its left edge at
  * screen x = 2X+31 and its top at screen y = Y. */
 #define FIELD_X      144
-#define TEXT_Y       124                                  /* top of the strip: the 512x360 picture is centred in 400 rows */
+#define TEXT_Y       76                                   /* top of the strip: the 512x360 picture is centred in 400 rows */
 #define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)
 #define SCR_X(gx)    (FIELD_X + 32 + (gx) * 4)            /* game x (0 = left edge of cell 0) -> screen x */
 #define SCR_Y(gy)    (FIELD_Y + (gy) * 3)
@@ -188,10 +188,9 @@ static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t row
     }
 }
 
-#define FRAME_T   19968                      /* timer ticks in a PAL frame (64 cycles x 312 lines, measured in Xemu) */
-#define PERIOD_T  33280                      /* one game tick: 5/3 frames = 30 a second, as on the GameTank */
+#define FRAME_T   16832                      /* timer ticks in a 60 Hz frame (measured in Xemu) */
+#define TICK_MIN  (FRAME_T + FRAME_T / 2)    /* a game tick is two frames (30 a second, as on the GameTank): flip on the first frame boundary after 1.5 */
 static uint16_t last_flip;
-static int16_t tick_err;                     /* how far the flips have run ahead (-) or behind (+) of the ideal 30 a second */
 
 static void commit_and_show(void)
 {
@@ -205,21 +204,10 @@ static void commit_and_show(void)
     }
     dma_copy(scr, SCREEN_CHARS * 2, 0, (cur_buf ? SCREEN_B : SCREEN_A) + FIELD_OFS);
     wait_frame();
-    for (;;) {                                       /* flip on the first frame boundary that is due: ticks of 2, 1, 2, 2, 1, ... frames */
-        uint16_t e = last_flip - timer_now();
-        if ((int32_t)e + FRAME_T / 2 >= (int32_t)PERIOD_T - tick_err) break;
-        wait_frame();
-    }
+    while ((uint16_t)(last_flip - timer_now()) < TICK_MIN) wait_frame();    /* normally every second frame, later if the drawing took longer */
     POKE(0xD061, cur_buf ? (uint8_t)(SCREEN_B >> 8) : (uint8_t)(SCREEN_A >> 8));        /* show it */
     POKE(0xD062, cur_buf ? (uint8_t)(SCREEN_B >> 16) : (uint8_t)(SCREEN_A >> 16));
-    {
-        uint16_t now = timer_now();
-        int32_t e = (uint16_t)(last_flip - now);
-        tick_err += (int16_t)(e - PERIOD_T);
-        if (tick_err > PERIOD_T) tick_err = PERIOD_T;
-        if (tick_err < -PERIOD_T) tick_err = -PERIOD_T;
-        last_flip = now;
-    }
+    last_flip = timer_now();
     cur_buf ^= 1;
 }
 
@@ -453,6 +441,8 @@ void render_init(void)
 {
     uint8_t i;
     POKE(0xD02F, 0x47); POKE(0xD02F, 0x53);          /* unlock the VIC-IV registers */
+    POKE(0xD06F, PEEK(0xD06F) | 0x80);               /* 60 Hz (NTSC) timing, so two frames are exactly one 30 Hz game tick */
+    wait_frame(); wait_frame(); wait_frame();        /* let the mode change settle before the registers that it resets are set */
     POKE(0xD030, PEEK(0xD030) | 0x04);               /* colours 0-15 come from the palette RAM too */
     /* palette bank 1 (mapped in) is for the characters; bank 2 is for the sprites */
     set_palette(0x40 | 0x10 | 0x08, palette_rgb, 256);

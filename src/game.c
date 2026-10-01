@@ -453,6 +453,27 @@ static unsigned char line_clear(unsigned char c, unsigned char r, unsigned char 
     return len;
 }
 
+/* scratch for the two searches over the tunnels: the Groundskeeper's (which caves is it joined to) and the fleeing enemies' (the way to the top) */
+static unsigned char fl_par[(ROWS + 1) << 4], fl_q[(ROWS + 1) << 4];
+
+/* mark in fl_par every open cell that is joined to the start cell by open cells */
+static void region_mark(unsigned char start)
+{
+    unsigned char head = 0, tail = 0, cur, d, nc, nr, n;
+    for (n = 0; n < sizeof fl_par; ++n) fl_par[n] = 0;
+    fl_q[tail++] = start; fl_par[start] = 1;
+    while (head != tail) {
+        cur = fl_q[head++];
+        for (d = 0; d < 4; ++d) {
+            nc = (cur & 15) + DX[d]; nr = (cur >> 4) + DY[d];
+            if (!open_cell((signed char)nc, (signed char)nr)) continue;
+            n = (nr << 4) | nc;
+            if (fl_par[n]) continue;
+            fl_par[n] = 1; fl_q[tail++] = n;
+        }
+    }
+}
+
 static unsigned char gk_ok(signed char c, signed char r)
 {
     if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return 0;
@@ -464,20 +485,24 @@ static void choose_dir_g(unsigned char i)
 {
     signed char c = e_x[i] >> 3, r = e_y[i] >> 3;
     signed char tc = (px + 4) >> 3, tr = (py + 4) >> 3;
-    unsigned char rev = e_dir[i] ^ 1, d, best = 255, bd = rev, n = 0, dist, opt[4], rr, cc;
+    unsigned char rev = e_dir[i] ^ 1, d, best = 255, bd = rev, n = 0, dist, opt[4], rr, cc, pass, any = 0;
     signed char nc, nr, dc, dr;
 
     if (e_type[i] == 3) {
-        /* Groundskeeper: go straight for the nearest open tunnel cell (never the surface) */
+        /* Groundskeeper: go straight (digging, see enemy_update) for the nearest open cell that is not joined to where it is, which is
+         * a sealed cave, or failing that the nearest open cell. Never the surface. */
         unsigned char bestd = 255;
+        region_mark((unsigned char)((r << 4) | c));
+        for (pass = 0; pass < 2 && !any; ++pass)
         for (rr = 1; rr < ROWS; ++rr)
             for (cc = 0; cc < COLS; ++cc) {
                 if (M(cc, rr) != 0 || (cc == c && rr == r)) continue;
+                if (!pass && fl_par[(rr << 4) | cc]) continue;
                 dc = cc - c; dr = rr - r;
                 if (dc < 0) dc = -dc;
                 if (dr < 0) dr = -dr;
                 dist = dc + dr;
-                if (dist < bestd) { bestd = dist; tc = cc; tr = rr; }
+                if (dist < bestd) { bestd = dist; tc = cc; tr = rr; any = 1; }
             }
     }
     for (d = 0; d < 4; ++d) {
@@ -509,6 +534,7 @@ static void refill_cell(unsigned char c, unsigned char r, unsigned char self)
 {
     unsigned char k;
     if (r == 0 || M(c, r) != 0) return;
+    if (paid[(r << 4) | c] - 1u > 3u) return;                 /* it only takes back what Doug dug: never a cave, never a tunnel it dug itself */
     if (absdiff(px, c << 3) < 8 && absdiff(py, r << 3) < 8) return;
     for (k = 0; k < MAXE; ++k) {
         if (k == self || e_state[k] == ES_NONE || e_state[k] == ES_POP || e_state[k] == ES_SQUASH) continue;
@@ -535,7 +561,6 @@ static void enemy_escape(unsigned char i)
 
 /* the way to the top along open tunnels (breadth first search from the enemy's cell to any cell of row 0).
  * Sets e_dir and returns 1, or returns 0 if there is no way: a sealed cave stays sealed. */
-static unsigned char fl_par[(ROWS + 1) << 4], fl_q[(ROWS + 1) << 4];
 static unsigned char flee_dir(unsigned char i)
 {
     unsigned char head = 0, tail = 0, cur, c, r, d, nc, nr, n, start, d0 = 0;
@@ -608,13 +633,15 @@ static void enemy_update(unsigned char i)
                 }
                 e_prevc[i] = x >> 3; e_prevr[i] = y >> 3;
                 choose_dir_g(i);
-                if (e_type[i] == 4) {
-                    /* the Mascot smashes through the dirt ahead of it, leaving a tunnel */
+                {
+                    /* the Mascot smashes through the dirt ahead of it, leaving a tunnel; so does the Groundskeeper (quietly), which is
+                     * how it opens up the sealed caves. Its tunnel is marked in paid[] so that it never rakes it shut. */
                     signed char mc = (x >> 3) + DX[e_dir[i]], mr = (y >> 3) + DY[e_dir[i]];
                     if (mc >= 0 && mc < COLS && mr >= 1 && mr < ROWS && M(mc, mr) == 1) {
                         M(mc, mr) = 0;
                         mark_around(mc, mr);
-                        SFX(ASSET__audio__dig_sfx_ID);
+                        if (e_type[i] == 3) paid[(mr << 4) | mc] = 0x10;
+                        else SFX(ASSET__audio__dig_sfx_ID);
                     }
                 }
             }

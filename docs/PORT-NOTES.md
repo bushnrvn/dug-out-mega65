@@ -121,3 +121,7 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
   out. Groundskeepers and Mad Scott never flee. The popup shows the loss with a minus sign (bit 15 of `pop_v`). While more than two
   are left they head for Doug a little more directly than before (fewer random turns in `choose_dir`).
   The search needs 448 bytes, so `DYN_MAX` (sprite copy slots) went from 160 to 152; the most ever seen in use is 134.
+- The Groundskeeper digs as it moves (`enemy_update`, the same code as Mad Scott's smashing, quietly): it heads for the nearest open cell that is
+  not joined to its own (`region_mark`, a flood fill over open cells, using the same scratch arrays as the fleeing search), so it works its way
+  from one sealed cave to the next, leaving a tunnel. Its cells are marked `paid[] = 0x10`; `refill_cell` now only rakes cells that Doug was paid
+  for (`paid` 1-4), so it never closes a cave or its own tunnel. In a 900-tick test at inning 5 it joined five caves in a chain.

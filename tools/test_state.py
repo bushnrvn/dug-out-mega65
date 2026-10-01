@@ -36,6 +36,7 @@ d = open(S + '/mem.bin', 'rb').read()
 g = lambda n, i=0: d[m['._' + n] + i]
 ES = ['NONE', 'WALK', 'GHOST', 'INFL', 'POP', 'SQUASH', 'FLAME']
 print('score', (g('score_h') | (g('score_h', 1) << 8)) * 100 + g('score_t') * 10, 'state', g('state'), 'level', g('level'), 'lives', g('lives'), 'enemies_left', g('enemies_left'), 'Doug', g('px'), g('py'))
+print(' ball: on', g('ball_on'), 'at', g('ball_x'), g('ball_y'), 'travelled', g('ball_dist'), 'in dirt', g('ball_dirt'))
 for i in range(6):
     print(' enemy %d type %d %-6s at (%3d,%3d) strikes %d timer %d' % (i, g('e_type', i), ES[g('e_state', i)], g('e_x', i), g('e_y', i), g('e_infl', i), g('e_timer', i)))
 if os.environ.get('PRINT_MAP'):

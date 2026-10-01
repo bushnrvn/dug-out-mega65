@@ -299,6 +299,7 @@ static void ball_step(void)
                 break;
             }
         }
+        if (ball_on && ball_dirt) ball_on = 0;      /* the ball stops at dirt (after one last chance to hit a bat or the boss right there) */
     }
 }
 

@@ -762,10 +762,17 @@ static void video_regs(void)
     POKE(0xD05D, PEEK(0xD05D) & 0x40);
 }
 
+void render_show(void)                               /* the first picture is in place: show it */
+{
+    POKE(0xD011, PEEK(0xD011) | 0x10);
+}
+
 void render_init(void)
 {
     uint8_t i, n, k;
     POKE(0xD02F, 0x47); POKE(0xD02F, 0x53);          /* unlock the VIC-IV registers */
+    POKE(0xD05D, PEEK(0xD05D) & 0x7F);               /* (HOTREG off first, see video_regs) */
+    POKE(0xD011, PEEK(0xD011) & 0xEF);               /* blank the screen: the mode is switched on a second before there is a picture to show */
     POKE(0xD06F, PEEK(0xD06F) | 0x80);               /* 60 Hz (NTSC) timing, so two frames are exactly one 30 Hz game tick */
     wait_frame(); wait_frame(); wait_frame();        /* let the mode change settle before the registers that it resets are set */
     POKE(0xD030, PEEK(0xD030) | 0x04);               /* colours 0-15 come from the palette RAM too */

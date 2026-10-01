@@ -253,6 +253,10 @@ int main(void)
     }
 #endif
     render_init();
+#ifdef TEST_AFTER_INIT
+    POKE(0xD6CF, 0x42);
+    for (;;) { }
+#endif
     snd_start();
     load_hiscore();
 #ifndef TEST_EXIT
@@ -261,6 +265,7 @@ int main(void)
     snd_song(TEST_MUSIC, 1);
 #endif
     render_frame(); render_frame();
+    render_show();
 #ifdef HW_DIAG
     hw_diag_post();
 #endif

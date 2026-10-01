@@ -20,20 +20,20 @@ Not done yet: the score and lives display, the title, intro and end screens, sou
 The keyboard and joystick code has not been exercised (the automated checks cannot press keys). Everything has been run
 only in the emulator. See `docs/PORT-NOTES.md`.
 
-`tools/convert.py` turns the art in `assets/` into `src/data.c` and `src/sprites.c` (run by `make`).
+`tools/convert.py` turns the art in `assets/` into `src/data.c`, `src/sprites.c` and the disk's data files in `build/assets/` (run by `make`); `tools/mkd81.py` writes the disk image.
 
 ## Build
 
 ```sh
 export CC65_HOME=/path/to/cc65      # a cc65 build with the mega65 target
-make                                # writes build/dugout.prg
+make                                # writes build/dugout.d81: the game and its data files
 ```
 
-Run `build/dugout.prg` on a MEGA65, or in the Xemu emulator:
+The game loads its art from the disk when it starts, so it needs the whole `build/dugout.d81` (mount it on a MEGA65 and run `DUGOUT`), or run it in the Xemu emulator:
 
 ```sh
 scripts/run-xemu.sh                 # opens the emulator
-SHOT=/tmp/out.png scripts/run-xemu.sh   # runs, then saves a screenshot once the program returns to BASIC
+SHOT=/tmp/out.png scripts/run-xemu.sh   # runs the test build (make with -DTEST_EXIT), then saves a screenshot
 ```
 
 Set `XEMU` to your `xmega65` binary and `M65_ROM` to a MEGA65 or C65 ROM image you own. The ROM is not in this repo.

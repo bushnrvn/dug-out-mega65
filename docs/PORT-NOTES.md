@@ -26,8 +26,8 @@ Drawing, input, timing, sound, saving, and an asset converter from the GameTank 
 - Display window: x 80..720, y 104..504 (640x400). The text area starts at (80, 104) by default; it is moved to (144, 148)
   to centre the 512x312 picture.
 - CHRXSCL ($D05A): character width is about 980/value pixels, rounded down. 30 gives exactly 32 px, i.e. 4x.
-- CHRYSCL ($D05B) had no effect in this mode at any value I tried, so vertical 3x is done in the tile data instead
-  (each tile is three characters stacked, with every pixel row repeated 3x).
+- CHRYSCL ($D05B) had no effect in this mode at any value I tried, so vertical scaling is done in the tile data instead
+  (each tile is four characters stacked, with every pixel row repeated 4x).
 - Sprites: full-colour, 16 sprite pixels wide = 32 physical pixels; with the native-vertical flag each row is one raster.
   Screen x = 2*X + 31, screen y = Y (both need their top bit in $D010 / $D077). In full-colour mode the low nybble of
   the sprite's colour register ($D027...) is the transparent pixel value and must be 0.
@@ -37,19 +37,23 @@ Drawing, input, timing, sound, saving, and an asset converter from the GameTank 
 
 ## Memory layout
 The PRG loads at $2001 in C65 mode. Below $8000 is plain RAM, but ROMs are laid over $8000-$BFFF; `src/early.s` runs first (as a
-constructor, from a segment below $8000) and clears ROM8/ROMA/ROMC in $D030, after which $2001-$BFFF are all usable
-(`cfg/dugout.cfg`, HIMEM $C000). Checked in Xemu by running a function placed above $8000. The large tables are only ever
-read by DMA, which ignores the ROM overlay anyway.
+constructor, from a segment below $8000) and clears ROM8/ROMA/ROMC in $D030, after which $2001-$CFFF are all usable
+(`cfg/dugout.cfg`, HIMEM $D000). Checked in Xemu by running a function placed above $8000.
 
 ## Software sprites
 Only eight hardware sprites exist and the game can have about twenty things moving, so apart from Doug everything is drawn by the CPU into
 copies of the characters it covers (`src/render.c`): each frame the plain map is copied, every cell an actor touches gets its own copy of its tile,
 the actors are drawn into the copies, then the copies and the map are uploaded to the buffer that is not being shown and the display switches
-to it. There are two screen buffers and two pools of 96 copies. Characters are 8 wide and a game pixel is one character pixel across and three
-down (the tile data repeats each row 3x).
+to it. There are two screen buffers and two pools of 80 copies. Characters are 8 wide and a game pixel is one character pixel across and four
+down (the tile data repeats each row 4x); Doug is drawn like the others.
 
 ## Memory (measured)
-- $2001-$CFFF: program, data and BSS (ROMs switched off at start-up).
-- $D000-$F6FF: the dirt picture's first 156 characters, read only by DMA. $F700 and up is overwritten by the system after the program loads, so
-  nothing may be placed there (this cost an hour to find: the last tiles came out as garbage).
-- Chip RAM: tiles from $40000 (character 4096), copies at characters 5000 and up, screens at $12000 and $13000, Doug's sprite at $16000.
+The game is a small program plus data files on the disk image (`build/dugout.d81`), the way the GameTank keeps its art in the cartridge.
+- Start-up (`src/early.s`, before the ROMs are switched off, because it uses the KERNAL): LOAD each data file from device 8 into bank 5
+  (`SETBNK`), then copy it with DMA into attic RAM ($8000000, 64K per file). The first two bytes of a data file are a dummy load address:
+  the KERNAL's LOAD drops them. File names are written in lower case in the source because both the assembler and the C compiler turn text
+  into PETSCII, where lower case is the disk's upper case.
+- $2001-$CFFF: program, data and BSS (the ROMs overlaid on $8000-$CFFF are switched off at start-up). $D000-$FFFF is under the I/O and KERNAL
+  and is not used.
+- Chip RAM: tile characters from $40000 (character 4096, copied from attic by DMA, 4 characters per tile), screens at $12000 and $13000,
+  the pools of copies and the score strip from $14000 (character 1280). Attic RAM: the data files.

@@ -22,11 +22,12 @@ os.makedirs(root + '/build/inc', exist_ok=True)
 open(root + '/build/inc/testscript.h', 'w').write('static const unsigned char script[][2] = {\n' + ''.join('{%d,%d},' % p for p in pairs) + '{0,0}};\n')
 env = dict(os.environ)
 if 'CC65_HOME' in env: env['PATH'] = env['CC65_HOME'] + '/bin:' + env['PATH']
+subprocess.run(['make', 'build/data.d81'], cwd=root, env=env, check=True, capture_output=True)
 subprocess.run(['cl65', '-t', 'mega65', '-C', 'cfg/dugout.cfg', '-O', '-I', 'build/inc', '-DTEST_EXIT', '-DTEST_SCRIPT', '-DTEST_TICKS=' + ticks, '-DTEST_LEVEL=' + level,
                 '-o', 'build/script.prg', 'src/early.s', 'src/blit.s', 'src/main.c', 'src/platform.c', 'src/render.c', 'src/game.c', 'src/data.c', 'src/sprites.c'],
                cwd=root, env=env, check=True, capture_output=True)
 if os.path.exists(out): os.remove(out)
 subprocess.run(['timeout', '-s', 'KILL', '60', os.environ.get('XEMU', os.path.expanduser('~/Desktop/xemu-master/build/apps/xmega65.app/Contents/MacOS/xmega65')),
                 '-besure', '-fastboot', '-testing', '-sleepless', '-rom', os.environ.get('M65_ROM', os.path.expanduser('~/Desktop/920413.bin')),
-                '-prg', 'build/script.prg', '-screenshot', out], cwd=root, capture_output=True)
+                '-8', 'build/data.d81', '-prg', 'build/script.prg', '-screenshot', out], cwd=root, capture_output=True)
 print('wrote', out, os.path.exists(out))

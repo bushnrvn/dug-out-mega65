@@ -15,6 +15,9 @@ void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t
 /* the same, with the source in another 64K bank of the first megabyte (chip RAM is $20000 and up) */
 void dma_job_src(uint8_t cmd, uint16_t count, uint16_t src, uint8_t src_bank, uint8_t dst_mb, uint32_t dst);
 
+/* copy between any two places in the 28-bit space (attic RAM is megabyte $80) */
+void dma_copy28(uint8_t src_mb, uint32_t src, uint8_t dst_mb, uint32_t dst, uint16_t count);
+
 void dma_char_in(uint16_t ch, uint8_t *dst);          /* 64 bytes of character number ch (absolute, address = ch * 64) into memory */
 void dma_char_out(const uint8_t *src, uint16_t ch);   /* and back */
 

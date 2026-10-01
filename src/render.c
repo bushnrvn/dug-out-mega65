@@ -24,14 +24,14 @@
 #define HUD_H        12                      /* the score strip above the field, in game pixels */
 #define HUD_ROWS     (HUD_H * SY / 8)
 #define HUD_CHARS    (FIELD_CH_COLS * HUD_ROWS)
-#define HUD_CH0      5400u                   /* its characters (they never change places, only pixels) */
+#define HUD_CH0      (POOL_B + DYN_MAX)                    /* its characters (they never change places, only pixels) */
 #define SCREEN_CHARS (FIELD_CH_COLS * SCREEN_ROWS)
 #define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
 #define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
 #ifndef DYN_MAX
 #define DYN_MAX      80                      /* characters that can be unique to one frame */
 #endif
-#define POOL_A       5000u                   /* their character numbers: two pools, one per screen buffer */
+#define POOL_A       1280u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)
 #define SCREEN_A     0x12000UL               /* two screen buffers, 2 bytes per character */
 #define SCREEN_B     0x13000UL
@@ -53,32 +53,14 @@ static uint16_t dyn_cell[DYN_MAX];                      /* the cell of each copy
 static uint8_t dyn_n;
 static uint8_t dyn_shadow[DYN_MAX][64];                 /* the copies, in normal memory while they are drawn into */
 static uint8_t dyn_dummy[64];
-static uint8_t tilebuf[64], charbuf[64], rowbuf[FIELD_CH_COLS * 2];
+static uint8_t charbuf[64], rowbuf[FIELD_CH_COLS * 2];
 static uint8_t cur_buf;                                 /* the buffer being drawn (not the one being shown) */
 
 /* ------------------------------------------------------------------ tiles -- */
-static void tile_px(uint16_t tile, uint8_t *dst)
-{
-    if (tile < N_BIG)            dma_copy(field_tiles_a[tile], 64, 0, (uint32_t)(uint16_t)dst);   /* above $D000: DMA only */
-    else if (tile < N_FIELD)     memcpy(dst, field_tiles_b[tile - N_BIG], 64);
-    else                         memcpy(dst, tunnel_tiles[tile - N_FIELD], 64);
-}
-
+/* The tile characters come from the TILES file on the disk, which start-up code copied into attic RAM (see early.s). */
 static void build_tiles(void)
 {
-    uint16_t t;
-    uint8_t k;
-    for (t = 0; t < N_TILES; ++t) {
-        tile_px(t, tilebuf);
-        for (k = 0; k < SY; ++k) {
-            uint8_t py, i;
-            for (py = 0; py < 8; ++py) {
-                const uint8_t *row = tilebuf + ((k * 8 + py) / SY) * 8;
-                for (i = 0; i < 8; ++i) charbuf[py * 8 + i] = row[i];
-            }
-            dma_copy(charbuf, 64, 0, ((uint32_t)(CHAR_BASE + t * SY + k)) << 6);
-        }
-    }
+    dma_copy28(0x80, 0, 0, (uint32_t)CHAR_BASE << 6, (uint16_t)N_TILE_TOTAL * SY * 64);
 }
 
 /* which tile shows at map position (cc, rr)? cc is the character column (game cell column + 1) */

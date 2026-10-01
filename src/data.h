@@ -4,11 +4,8 @@
 #define FIELD_CH_COLS 16
 #define FIELD_CH_ROWS 13
 #define BLANK_PIXEL 136
-/* the first N_BIG field characters sit in the DMA-only area above $D000, the rest in normal memory */
-#define N_BIG 156
-extern const unsigned char field_tiles_a[156][64];
-extern const unsigned char field_tiles_b[52][64];
-extern const unsigned char tunnel_tiles[16][64];
+#define N_FIELD_TILES 208
+#define N_TILE_TOTAL 224
 extern const unsigned char palette_rgb[256][3];
 #define COL_INK 136
 #define COL_RIM 215

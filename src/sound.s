@@ -16,6 +16,7 @@
         .export _snd_init
         .export _snd_req_song, _snd_req_loop, _snd_req_stop, _snd_req_sfx, _snd_req_pri
         .export _snd_log
+        .import save_busy
 
 N_SONGS = 4
 SND_MID = $A0                       ; the data starts at $01A000
@@ -138,6 +139,8 @@ _snd_init:
 
 irq:    lda     $D019
         sta     $D019               ; acknowledge
+        lda     save_busy           ; a best-score save is under way: the ROMs are laid over the player's variables, so touch nothing
+        bne     irq_out
         jsr     music_frame
 
 .ifndef WD_HI
@@ -154,7 +157,7 @@ WD_HI = 40
         sta     $D6CF
 @nowd:
 .endif
-        pla                         ; the same way out as the KERNAL's: B, Z, Y, X, A
+irq_out: pla                        ; the same way out as the KERNAL's: B, Z, Y, X, A
         tab
         plz
         ply

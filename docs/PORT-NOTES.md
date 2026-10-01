@@ -130,3 +130,6 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
   game ticks) apart, the first 26.9 frames in, and the song (8371 frames) loops, so the counter restarts with it. `beat_start` is called when
   the theme starts. It assumes ticks of exactly two frames; a slow frame would drift the nod a little until the song loops.
   DYN_MAX went down to 140 to make room for the code.
+- Saving the best score lays the ROMs over $8000-$CFFF, which hides the sound player's variables (they live up there). If the raster interrupt came
+  in during the save, the player read ROM bytes as its sound-effect pointer and Xemu stopped on "Unhandled memory read ... $607C06" at game over.
+  The save routine now sets `save_busy` (in the low, always-visible ONCE segment) and the interrupt does nothing while it is set.

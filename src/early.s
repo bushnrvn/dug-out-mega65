@@ -7,7 +7,7 @@
 ;
 ; If a file cannot be loaded the border turns red and the machine stops.
         .export hide_roms
-        .export _hs_buf, _save_hiscore
+        .export _hs_buf, _save_hiscore, save_busy
         .importzp ptr1
         .constructor hide_roms, 1
 
@@ -37,6 +37,7 @@ fidx:   .byte 0
 ; the best score file: 'D', 'O', hundreds low, hundreds high, tens digit. It lives in this low segment, which stays visible
 ; whatever is mapped over $8000 and up.
 _hs_buf: .byte 0, 0, 0, 0, 0
+save_busy: .byte 0                  ; 1 while the best score is being saved: the sound interrupt does nothing then (the ROMs hide its variables)
 HS_END = *
 hs_name: .byte "@0:hiscore"
 HS_NAME_LEN = * - hs_name
@@ -134,6 +135,8 @@ fail:   lda     #2                  ; red border, then stop
 _save_hiscore:
         php
         sei
+        lda     #1
+        sta     save_busy
         lda     #$A5                ; the video chip back in its C65 mode (the KERNAL's disk code expects it) ...
         sta     $D02F
         lda     #$96
@@ -172,6 +175,8 @@ _save_hiscore:
         sta     $D02F
         lda     #$53
         sta     $D02F
+        lda     #0
+        sta     save_busy
         plp
         rts
 

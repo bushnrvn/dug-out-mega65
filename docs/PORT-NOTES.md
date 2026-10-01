@@ -50,10 +50,31 @@ down (the tile data repeats each row 4x); Doug is drawn like the others.
 ## Memory (measured)
 The game is a small program plus data files on the disk image (`build/dugout.d81`), the way the GameTank keeps its art in the cartridge.
 - Start-up (`src/early.s`, before the ROMs are switched off, because it uses the KERNAL): LOAD each data file from device 8 into bank 5
-  (`SETBNK`), then copy it with DMA into attic RAM ($8000000, 64K per file). The first two bytes of a data file are a dummy load address:
-  the KERNAL's LOAD drops them. File names are written in lower case in the source because both the assembler and the C compiler turn text
-  into PETSCII, where lower case is the disk's upper case.
-- $2001-$CFFF: program, data and BSS (the ROMs overlaid on $8000-$CFFF are switched off at start-up). $D000-$FFFF is under the I/O and KERNAL
-  and is not used.
-- Chip RAM: tile characters from $40000 (character 4096, copied from attic by DMA, 4 characters per tile), screens at $12000 and $13000,
-  the pools of copies and the score strip from $14000 (character 1280). Attic RAM: the data files.
+  (`SETBNK`), then copy it with DMA into attic RAM ($8000000, 64K per file; file n goes to attic bank n). The first two bytes of a data
+  file are a dummy load address: the KERNAL's LOAD drops them. File names are written in lower case in the source because both the
+  assembler and the C compiler turn text into PETSCII, where lower case is the disk's upper case.
+- $2001-$CFFF: program, data and BSS (the ROMs overlaid on $8000-$CFFF are switched off at start-up). $D000-$FFFF is under the I/O and
+  the KERNAL ROM, which stays mapped (the sound interrupt and the best score save both use it).
+- Chip RAM (the VIC-IV shows characters from anywhere up to $5FFFF):
+  - **Do not write to the first 8K of bank 1 ($10000-$11FFF).** The C65 system keeps its disk state there. Overwriting it makes every
+    KERNAL disk call fail with "device not present" (found by bisecting the start-up: this is what broke saving the best score).
+  - $12100, $12900: the two screen maps. $13100: the score strip's characters. $14900: the pools of sprite-copy characters (2 x 160).
+    $1A000: the sound data. $1E000: the banner characters.
+  - bank 4: the tile characters ($40000-$4DFFF), then the software sprites' pixels at $4E000.
+  - bank 5: the title / game over / victory picture's characters from $50000 (up to 928 characters), then the font's glyph images at $5E800.
+- Attic RAM: the data files.
+
+## The best score
+Kept in a small file, `hiscore`, on the disk (5 bytes: two marker bytes, the hundreds, the tens digit). It is loaded at start-up with
+the other files and saved at the end of a run that set a new best, with the KERNAL's SAVE. Two things about saving at run time:
+- The KERNAL must see the machine the way it was at start-up: interrupts off, the ROMs overlaid on $8000-$CFFF again, and the CIA
+  interrupts left alone. The save routine (low memory, `src/early.s`) sets that up and puts everything back afterwards.
+- The KERNAL's disk code reprograms CIA 1's timer, which the frame pacing reads. The game restarts the timer after a save, and the
+  pacing loop is bounded so a stopped timer can never freeze the game (it did, before: the music kept playing and the picture froze).
+- Xemu writes the file into the mounted .d81, so the best score survives between runs there too.
+
+## Sound
+`src/sound.s`: a 60 Hz player on the VIC raster interrupt, reached through the KERNAL's interrupt entry (it pushes A, X, Y, Z and B and
+jumps through the RAM vector at $0314; the player's handler replaces the KERNAL's own and leaves the same way). Melody, bass and snare on
+SID 1, harmony on SID 2, sound effects on SID 3. All voices of a song are padded to the same length so they loop together. Pitch is
+calculated for the NTSC clock (the game runs the MEGA65 at 60 Hz); I could not hear it, so the tuning is untested by ear.

@@ -23,7 +23,7 @@ open(root + '/build/inc/testscript.h', 'w').write('static const unsigned char sc
 env = dict(os.environ)
 if 'CC65_HOME' in env: env['PATH'] = env['CC65_HOME'] + '/bin:' + env['PATH']
 subprocess.run(['make', 'build/data.d81'], cwd=root, env=env, check=True, capture_output=True)
-subprocess.run(['cl65', '-t', 'mega65', '-C', 'cfg/dugout.cfg', '-O', '-I', 'build/inc', '-DTEST_EXIT', '-DTEST_SCRIPT', '-DTEST_TICKS=' + ticks, '-DTEST_LEVEL=' + level] + (['-DTEST_TITLE'] if os.environ.get('TEST_TITLE') else []) + (['-DTEST_START=' + os.environ['TEST_START']] if os.environ.get('TEST_START') else []) + (['-DTEST_LIVES=' + os.environ['TEST_LIVES']] if os.environ.get('TEST_LIVES') else []) + [
+subprocess.run(['cl65', '-t', 'mega65', '-C', 'cfg/dugout.cfg', '-O', '-I', 'build/inc', '-DTEST_EXIT', '-DTEST_SCRIPT', '-Wa', '-DTEST_WD', '-DTEST_TICKS=' + ticks, '-DTEST_LEVEL=' + level] + (['-DTEST_TITLE'] if os.environ.get('TEST_TITLE') else []) + (['-DTEST_START=' + os.environ['TEST_START']] if os.environ.get('TEST_START') else []) + (['-DTEST_LIVES=' + os.environ['TEST_LIVES']] if os.environ.get('TEST_LIVES') else []) + os.environ.get('TEST_DEFS', '').split() + [
                 '-o', 'build/script.prg', 'src/early.s', 'src/blit.s', 'src/sound.s', 'src/main.c', 'src/platform.c', 'src/render.c', 'src/game.c', 'src/data.c', 'src/sprites.c'],
                cwd=root, env=env, check=True, capture_output=True)
 if os.path.exists(out): os.remove(out)

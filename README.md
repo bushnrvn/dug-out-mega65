@@ -16,7 +16,9 @@ A full round plays in the Xemu emulator, from the title screen to the game over 
   eight sprites; a game pixel is 4x4 screen pixels, at 60 Hz, 30 game ticks a second like the GameTank version;
 - the score and lives strip, the title screen, the game over and victory screens, with the GameTank's own artwork.
 
-Not done yet: the intro scenes, sound and music, the saved high score. The keyboard and joystick code has not been
+Also: music and sound effects on the SID chips, the best score saved on the disk, and the GameTank's READY, PAUSED and INNING OVER banners and timings.
+
+Not done yet: the enemy introduction scenes. The keyboard and joystick code has not been
 exercised (the automated checks cannot press keys). Everything has been run only in the emulator, none of it on real
 hardware. See `docs/PORT-NOTES.md`.
 

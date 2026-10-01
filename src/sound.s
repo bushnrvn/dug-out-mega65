@@ -5,7 +5,7 @@
 ;   SID 2 ($D420): voice 1 harmony (pulse)
 ;   SID 3 ($D440): voice 1 sound effects (the effect's volume is the chip's master volume)
 ;
-; The data (tools/make_sound.py) is in chip RAM at $1A000, read with 28-bit pointers. The game talks to the player through
+; The interrupt comes in through the KERNAL (hooked at $0314), so the KERNAL stays usable. The data (tools/make_sound.py) is in chip RAM at $1A000, read with 28-bit pointers. The game talks to the player through
 ; the request bytes below: it sets them, the interrupt handler acts on them at the start of the next frame.
 ;
 ;   snd_req_song  song number to start (or $FF); snd_req_loop  1 = repeat it
@@ -39,6 +39,8 @@ sfx_left: .res 1
 sfx_pri:  .res 1
 sfx_p:  .res 4                      ; the next effect frame
 tmp:    .res 1
+wd_lo:  .res 1
+wd_hi:  .res 1
 _snd_req_song: .res 1
 _snd_req_loop: .res 1
 _snd_req_stop: .res 1
@@ -55,12 +57,6 @@ vwave:  .byte $40, $10, $80, $40    ; its waveform: pulse, triangle, noise, puls
 ; ---------------------------------------------------------------------------------------------- setup
 _snd_init:
         sei
-        lda     #0                  ; map plain RAM over $8000-$FFFF (the KERNAL ROM is mapped over $E000 by the 45GS02's MAP,
-        ldx     #0                  ; not by $D030), so that the interrupt vectors at $FFFA-$FFFF are ours
-        ldy     #0
-        ldz     #0
-        map
-        eom
         lda     #0
         tax
 @clr:   sta     $D400,x             ; all four SIDs silent
@@ -133,26 +129,29 @@ _snd_init:
         lda     #$01
         sta     $D01A
         sta     $D019
-        lda     #<irq
-        sta     $FFFE
-        lda     #>irq
-        sta     $FFFF
-        lda     #<nmi
-        sta     $FFFA
-        lda     #>nmi
-        sta     $FFFB
+        lda     #<irq               ; the KERNAL's interrupt entry pushes A, X, Y, Z and B and then jumps through ($0314);
+        sta     $0314               ; this handler takes over from the KERNAL's own (keyboard scan, cursor, ...), and
+        lda     #>irq               ; leaves the KERNAL mapped, so the game can still use it to save the best score
+        sta     $0315
         cli
         rts
 
-nmi:    rti
-
-irq:    pha
-        phx
-        phy
-        phz
-        lda     $D019
+irq:    lda     $D019
         sta     $D019               ; acknowledge
         jsr     music_frame
+.ifdef TEST_WD
+        inc     wd_lo               ; test builds: a watchdog, so a hang cannot stall a test run (about 50 s)
+        bne     @nowd
+        inc     wd_hi
+        lda     wd_hi
+        cmp     #12
+        bcc     @nowd
+        lda     #$42
+        sta     $D6CF
+@nowd:
+.endif
+        pla                         ; the same way out as the KERNAL's: B, Z, Y, X, A
+        tab
         plz
         ply
         plx

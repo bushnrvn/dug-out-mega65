@@ -42,11 +42,38 @@ static void snd_start(void)
 }
 
 /* a new game from the title screen */
+/* the best score lives in a small file on the disk (src/early.s loads it at start-up and saves it) */
+extern unsigned char hs_buf[5];
+void save_hiscore(void);
+
+static void load_hiscore(void)
+{
+    if (hs_buf[0] == 0x44 && hs_buf[1] == 0x4F) {
+        hi_h = (unsigned int)hs_buf[2] | ((unsigned int)hs_buf[3] << 8);
+        hi_t = hs_buf[4];
+    }
+}
+
+static void save_hiscore_if_new(void)
+{
+#if !defined(TEST_EXIT) || defined(TEST_SAVE)
+    hs_buf[0] = 0x44; hs_buf[1] = 0x4F;
+    hs_buf[2] = (unsigned char)hi_h; hs_buf[3] = (unsigned char)(hi_h >> 8); hs_buf[4] = hi_t;
+    save_hiscore();
+    timer_start();                                   /* the KERNAL's disk code reprograms the CIA timer the pacing uses */
+#endif
+}
+
+static unsigned int scene_t;
+static char ready_text[9] = "INNING 0";
+static uint8_t paused_shown;                              /* ticks on the game over and victory screens */
+
 static void end_run(uint8_t to)                         /* game over or victory */
 {
-    state = to; state_timer = 0;
+    state = to; state_timer = 0; scene_t = 0;
     if (to == ST_WIN) add_score(10 * lives);                 /* 1,000 per life left */
     new_best = (hi_h > hi_at_start_h) || (hi_h == hi_at_start_h && hi_t > hi_at_start_t);
+    if (new_best) save_hiscore_if_new();
     if (to == ST_OVER) snd_song(SONG_OVER, 0);
     else snd_song(SONG_TITLE, 1);
 }
@@ -60,10 +87,9 @@ static void new_game(void)
 #endif
     score_dirty = 1;
     build_level();
-    state = ST_PLAY; state_timer = 0;
+    state = ST_READY; state_timer = 0;
     snd_stop();
     snd_sfx(SFX_START, 2);
-    snd_song(SONG_THEME, 1);
 }
 
 int main(void)
@@ -93,12 +119,17 @@ int main(void)
     build_level();
     render_init();
     snd_start();
+    load_hiscore();
 #ifndef TEST_EXIT
     snd_song(SONG_TITLE, 1);
 #elif defined(TEST_MUSIC)
     snd_song(TEST_MUSIC, 1);
 #endif
     render_frame(); render_frame();
+#ifdef TEST_ENDRUN
+    score_h = 4321; score_t = 3; hi_h = 4321; hi_t = 3; hi_at_start_h = 0; hi_at_start_t = 0;
+    end_run(ST_OVER);                                /* a run that ends at once with a new best score: tests saving it */
+#endif
 
 #ifdef TEST_EXIT
     for (n = 0; n < TEST_TICKS; ++n) {
@@ -123,31 +154,52 @@ int main(void)
         if (state == ST_TITLE) {
             if (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)) new_game();
         } else if (state == ST_OVER || state == ST_WIN) {
-            if (state_timer < 255) ++state_timer;
-            if (state_timer >= 20 && (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A))) { state = ST_TITLE; snd_song(SONG_TITLE, 1); }
+            if (scene_t < 60000u) ++scene_t;
+            state_timer = (scene_t > 255) ? 255 : (unsigned char)scene_t;
+            if ((state == ST_OVER && scene_t > 600) || (scene_t > 20 && (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)))) {
+                state = ST_TITLE; snd_song(SONG_TITLE, 1);
+            }
+        } else if (state == ST_READY) {                      /* "INNING n / PLAY BALL!", then the music starts and play begins */
+            if (state_timer == 21) {
+                snd_sfx(SFX_READY, 2);
+                if (level >= INNINGS) render_banner("FINAL INNING", "BOSS: MAD SCOTT");
+                else {
+                    ready_text[7] = '0' + level;
+                    render_banner(ready_text, "PLAY BALL!");
+                }
+            }
+            if (++state_timer > 90) {
+                render_banner_off();
+                state = ST_PLAY; state_timer = 0;
+                snd_song(SONG_THEME, 1);
+            }
         } else if (state == ST_PAUSE) {
-            if (player1_new_buttons & INPUT_MASK_START) state = ST_PLAY;
+            if (!paused_shown) { render_banner("PAUSED", 0); paused_shown = 1; }
+            if (player1_new_buttons & INPUT_MASK_START) { render_banner_off(); paused_shown = 0; state = ST_PLAY; }
         } else if (state == ST_PLAY) {
             play_update();
         } else if (state == ST_DYING) {
-            if (++state_timer > 40) {
+            rocks_update();                                  /* a falling boulder keeps falling */
+            if (++state_timer > 70) {
                 state_timer = 0;
                 if (lives) --lives;
                 if (!lives) end_run(ST_OVER);
-                else { reset_round(); state = ST_PLAY; snd_song(SONG_THEME, 1); }
+                else { reset_round(); state = ST_READY; }
             }
         } else if (state == ST_CLEAR) {
-            if (++state_timer > 60) {
+            if (state_timer == 0) render_banner("INNING OVER!", 0);
+            if (++state_timer > 130) {
                 state_timer = 0;
+                render_banner_off();
                 ++level;
                 if (level > INNINGS) end_run(ST_WIN);
-                else { build_level(); state = ST_PLAY; snd_song(SONG_THEME, 1); }
+                else { build_level(); state = ST_READY; }
             }
         }
         render_frame();                              /* waits for the next frame itself, so ticks are 2 frames apart */
     }
 #ifdef TEST_EXIT
-    score_h = frames_seen; ++frame_ct;          /* the frame count shows up as the score */
+score_h = frames_seen; ++frame_ct;          /* the frame count shows up as the score */
     render_frame();
     POKE(0xD6CF, 0x42);                              /* Xemu in -testing mode exits when this is written */
     for (;;) { }

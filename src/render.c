@@ -22,20 +22,25 @@
 #define SY           4                       /* screen rows per game pixel (and character rows per tile row) */
 #define SCREEN_ROWS  (FIELD_CH_ROWS * SY)
 #define TITLE_CH0    5120u                   /* the title picture's characters: chip RAM $50000 (bank 5), 4 per tile like the field */
+#define BANNER_CH0   1920u                   /* the banner's characters: chip RAM $1E000 */
+#define BAN_TX       10                      /* the banner is 10 x 3 tiles: 80 x 24 game pixels */
+#define BAN_TY       3
+#define BAN_COL      3                       /* its place on the field, in tiles */
+#define BAN_ROW      5
 #define HUD_H        12                      /* the score strip above the field, in game pixels */
 #define HUD_ROWS     (HUD_H * SY / 8)
 #define HUD_CHARS    (FIELD_CH_COLS * HUD_ROWS)
-#define HUD_CH0      (POOL_B + DYN_MAX)                    /* its characters (they never change places, only pixels) */
+#define HUD_CH0      1220u                   /* chip RAM $13100 */                    /* its characters (they never change places, only pixels) */
 #define SCREEN_CHARS (FIELD_CH_COLS * SCREEN_ROWS)
 #define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
 #define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
 #ifndef DYN_MAX
-#define DYN_MAX      128                     /* characters that can be unique to one frame */
+#define DYN_MAX      160                     /* characters that can be unique to one frame */
 #endif
-#define POOL_A       1280u                   /* their character numbers: two pools, one per screen buffer */
+#define POOL_A       1316u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)
-#define SCREEN_A     0x12000UL               /* two screen buffers, 2 bytes per character */
-#define SCREEN_B     0x13000UL
+#define SCREEN_A     0x12100UL               /* two screen buffers, 2 bytes per character */
+#define SCREEN_B     0x12900UL
 #define COLOUR_OFS   0x2000u                 /* colour RAM offset, in $FF80000 */
 #define XSCL         30                      /* character width = about 980/XSCL pixels: 30 gives 32, i.e. 4 per game pixel (measured in Xemu) */
 
@@ -86,7 +91,9 @@ static uint8_t scene;                                    /* which screen is up *
 #define scene_title (scene == SC_TITLE)
 #define ART_STRIP_CH0 TITLE_CH0                          /* the over and win pictures: 96 strip characters, then the field's */
 
-static void rebuild_base(void)
+static uint8_t banner_on;
+
+static void rebuild_base_plain(void)
 {
     uint8_t rr, cc, k;
     uint16_t tile;
@@ -102,6 +109,17 @@ static void rebuild_base(void)
             tile = tile_at(cc, rr);
             for (k = 0; k < SY; ++k) base_scr[rr * SY + k][cc] = CHAR_BASE + tile * SY + k;
         }
+}
+
+static void rebuild_base(void)
+{
+    uint8_t tx, ty, k;
+    rebuild_base_plain();
+    if (banner_on && scene == SC_GAME)                 /* the banner's tiles over the field */
+        for (ty = 0; ty < BAN_TY; ++ty)
+            for (tx = 0; tx < BAN_TX; ++tx)
+                for (k = 0; k < SY; ++k)
+                    base_scr[(BAN_ROW + ty) * SY + k][BAN_COL + tx] = BANNER_CH0 + (ty * BAN_TX + tx) * SY + k;
 }
 
 /* ------------------------------------------------------- software sprites -- */
@@ -143,7 +161,8 @@ static void draw_box(int16_t X, int16_t Y, uint8_t w, uint8_t h, uint8_t v)
     }
 }
 
-extern const uint8_t *br_src;                   /* blit.s */
+extern uint16_t br_src;                          /* blit.s: where in chip RAM the run's pixels are: a bank and an offset in it */
+extern uint8_t br_bank;
 extern uint8_t *br_dst;
 extern uint8_t br_n;
 uint8_t br_scan(void);
@@ -151,13 +170,22 @@ void blit_run(void);
 
 /* rows r0..r0+rows-1 of a sprite, with its top-left at plane position (X, Y). Each row is cut into runs that lie in one
  * character; the character copy is only looked up (or made) once a run has a visible pixel. */
-static void draw_img(const uint8_t *px, uint8_t w, uint8_t h, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
+/* Where the sprites' pixels and the font's glyph images are in chip RAM. (Not in bank 1: its first 8K belongs to the C65 system,
+ * which keeps its disk state there, and the KERNAL stops finding the drive if that is overwritten.) Both are in the unused tails
+ * of the banks that hold the tiles (bank 4) and the pictures (bank 5). */
+#define SPR_BANK     4
+#define SPR_BASE     0xE000u                     /* $4E000 */
+#define GLYPH_BANK   5
+#define GLYPH_BASE   0xE800u                     /* $5E800, just after the pictures' characters (928 of them from $50000) */
+
+static void draw_img(uint16_t px, uint8_t bank, uint8_t w, uint8_t h, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
 {
     uint8_t sy, sx, sxe, take, k, xx, x0 = (uint8_t)X, cr, yr;
-    const uint8_t *src;
+    uint16_t src;
     int16_t yy = Y + r0;
     if ((uint8_t)(r0 + rows) < h) h = r0 + rows;
     if (X >= 128 || X + w <= 0) return;
+    br_bank = bank;
     sx = (X < 0) ? (uint8_t)(-X) : 0;                  /* clip to the picture */
     sxe = (X + w > 128) ? (uint8_t)(128 - X) : w;
     src = px + (uint16_t)r0 * w;
@@ -169,6 +197,8 @@ static void draw_img(const uint8_t *px, uint8_t w, uint8_t h, int16_t X, int16_t
             xx = x0 + k;
             take = 8 - (xx & 7);
             if (take > sxe - k) take = sxe - k;
+            if (banner_on && (uint8_t)((xx >> 3) - BAN_COL) < BAN_TX && (uint8_t)((yy >> 3) - BAN_ROW) < BAN_TY)
+                continue;                                /* nothing is drawn over a banner (it is eight game pixels per tile) */
             br_src = src + k; br_n = take;
             if (br_scan()) {
                 br_dst = dyn_for(xx >> 3, cr) + yr + (xx & 7);
@@ -181,7 +211,7 @@ static void draw_img(const uint8_t *px, uint8_t w, uint8_t h, int16_t X, int16_t
 static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
 {
     const SoftSprite *s = &soft_sprites[idx];
-    draw_img(s->px, s->w, s->h, X, Y, r0, rows);
+    draw_img(SPR_BASE + s->off, SPR_BANK, s->w, s->h, X, Y, r0, rows);
 }
 
 #define FRAME_T   16832                      /* timer ticks in a 60 Hz frame (measured in Xemu) */
@@ -204,7 +234,8 @@ static void commit_and_show(void)
         poke_cell();
     }
     wait_frame();
-    while ((uint16_t)(last_flip - timer_now()) < TICK_MIN) wait_frame();    /* normally every second frame, later if the drawing took longer */
+    for (d = 0; d < 4 && (uint16_t)(last_flip - timer_now()) < TICK_MIN; ++d)    /* normally every second frame, later if the drawing took longer; */
+        wait_frame();                                                              /* at most a few, so a stopped timer cannot hang the game */
     POKE(0xD061, cur_buf ? (uint8_t)(SCREEN_B >> 8) : (uint8_t)(SCREEN_A >> 8));        /* show it */
     POKE(0xD062, cur_buf ? (uint8_t)(SCREEN_B >> 16) : (uint8_t)(SCREEN_A >> 16));
     last_flip = timer_now();
@@ -345,13 +376,10 @@ static uint8_t glyph_index(uint8_t ch)
 /* text on the picture, with the game's font (set 0 = cream, 1 = gold); only the lit pixels are drawn */
 static void draw_text(int16_t x, int16_t y, const char *str, uint8_t set)
 {
-    uint8_t ch, idx, k, g[24], col = set ? FONT_FG1 : FONT_FG0;
+    uint8_t ch, idx;
     while ((ch = (uint8_t)*str++) != 0) {
         idx = glyph_index(ch);
-        if (idx != 255) {
-            for (k = 0; k < 24; ++k) g[k] = (font_bits[idx][k >> 3] & (1 << (k & 7))) ? col : 0;
-            draw_img(g, 4, 6, x, y, 0, 6);
-        }
+        if (idx != 255) draw_img(GLYPH_BASE + (uint16_t)(set * 41 + idx) * 24, GLYPH_BANK, 4, 6, x, y, 0, 6);
         x += 4;
     }
 }
@@ -512,6 +540,55 @@ static void load_scene_art(uint8_t sc)             /* attic file -> the picture 
     else dma_copy28(0x80, (uint32_t)(sc == SC_OVER ? 2 : 3) << 16, 0, (uint32_t)TITLE_CH0 << 6, 59392);
 }
 
+/* ----------------------------------------------------------------- banners -- */
+/* A banner ("INNING 3 / PLAY BALL!", "PAUSED", ...) is a small picture, 80 x 24 game pixels: ink with a rim line at the top
+ * and bottom and one or two lines of text. It is drawn once into the spare sprite-copy memory, cut into characters, and
+ * set over the field map. */
+#define BW (BAN_TX * 8)
+#define BH (BAN_TY * 8)
+
+static void ban_text(uint8_t *img, uint8_t y, const char *str, uint8_t set)
+{
+    uint8_t n = 0, ch, idx, i, j, col = set ? FONT_FG1 : FONT_FG0;
+    uint8_t x;
+    while (str[n]) ++n;
+    x = (BW - n * 4) >> 1;
+    while ((ch = (uint8_t)*str++) != 0) {
+        idx = glyph_index(ch);
+        if (idx != 255)
+            for (j = 0; j < 6; ++j)
+                for (i = 0; i < 4; ++i)
+                    if (font_bits[idx][(j * 4 + i) >> 3] & (1 << ((j * 4 + i) & 7))) img[(y + j) * BW + x + i] = col;
+        x += 4;
+    }
+}
+
+void render_banner(const char *a, const char *b)
+{
+    uint8_t *img = (uint8_t *)dyn_shadow;
+    uint8_t tx, ty, k, j;
+    memset(img, COL_INK, BW * BH);
+    memset(img + BW + 2, COL_RIM, BW - 4);
+    memset(img + (BH - 2) * BW + 2, COL_RIM, BW - 4);
+    if (b) { ban_text(img, 5, a, 1); ban_text(img, 14, b, 0); }
+    else ban_text(img, 9, a, 1);
+    for (ty = 0; ty < BAN_TY; ++ty)
+        for (tx = 0; tx < BAN_TX; ++tx)
+            for (k = 0; k < SY; ++k) {
+                for (j = 0; j < 8; ++j)
+                    memcpy(charbuf + j * 8, img + (ty * 8 + (k * 8 + j) / SY) * BW + tx * 8, 8);
+                dma_char_out(charbuf, BANNER_CH0 + (ty * BAN_TX + tx) * SY + k);
+            }
+    banner_on = 1;
+    field_dirty = 1;
+}
+
+void render_banner_off(void)
+{
+    banner_on = 0;
+    field_dirty = 1;
+}
+
 /* the title screen: Doug runs along the long tunnel with a Vumpire and a Heater after him. Positions repeat every 128 half-ticks,
  * which matches the 8-bit tick counter, so the chase loops without a jump. */
 static void draw_title(void)
@@ -602,6 +679,8 @@ void render_init(void)
     POKE(0xD05D, PEEK(0xD05D) & 0xC0);
 
     build_tiles();
+    dma_copy28(0x80, 5UL << 16, 0, 0x4E000UL, GLYPH_OFF);                              /* the sprite pixels: attic file 5 -> chip RAM */
+    dma_copy28(0x80, (5UL << 16) + GLYPH_OFF, 0, 0x5E800UL, SPRITE_BLOCK_SIZE - GLYPH_OFF);   /* and the glyph images */
     dma_fill(0, TOTAL_CHARS * 2, 0xFF, 0x80000UL + COLOUR_OFS);       /* colour RAM: plain characters */
 
     POKE(0xD015, 0x00);                              /* no hardware sprites: Doug is drawn like the others */

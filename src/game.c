@@ -683,7 +683,7 @@ static unsigned char enemies_touch_player(void)
     return 0;
 }
 
-static void rocks_update(void)
+void rocks_update(void)
 {
     unsigned char i, k, c, r, below;
     for (i = 0; i < MAXR; ++i) {

@@ -46,6 +46,7 @@ extern int player1_buttons, player1_new_buttons;
 
 void add_score(unsigned int h);   /* hundreds of points: also the best score and extra lives */
 void build_level(void);            /* a new inning's map, pockets, enemies and boulders (seeded by run_seed and level) */
+void rocks_update(void);          /* boulders keep falling while the screen shows Doug being caught */
 void play_update(void);            /* one game tick */
 void reset_round(void);            /* Doug and the enemies back to their start positions */
 #endif

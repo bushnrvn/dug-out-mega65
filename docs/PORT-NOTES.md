@@ -77,4 +77,23 @@ the other files and saved at the end of a run that set a new best, with the KERN
 `src/sound.s`: a 60 Hz player on the VIC raster interrupt, reached through the KERNAL's interrupt entry (it pushes A, X, Y, Z and B and
 jumps through the RAM vector at $0314; the player's handler replaces the KERNAL's own and leaves the same way). Melody, bass and snare on
 SID 1, harmony on SID 2, sound effects on SID 3. All voices of a song are padded to the same length so they loop together. Pitch is
-calculated for the NTSC clock (the game runs the MEGA65 at 60 Hz); I could not hear it, so the tuning is untested by ear.
+calculated for the NTSC clock (the game runs the MEGA65 at 60 Hz); it has been heard on an R6 and sounds right.
+
+## Real hardware (tested on an R6) versus Xemu
+Xemu hid all of these. The game was first built and tested only in Xemu, and none of it worked on the R6 until they were fixed.
+- **HOTREG ($D05D bit 7).** While it is on (the default), touching VIC-II registers (including $D031) makes the chip recompute the
+  screen layout from the old VIC-II registers, a moment later, wiping chars per row ($D05E), rows ($D07B), the text area start
+  ($D04C/$D04E), the borders ($D048-$D04B) and so on. Xemu does this instantly, so the game's settings always won there. The game now
+  switches HOTREG off before it sets anything. That also stops the chip setting $D05B (character line height) itself, so the game sets
+  $D05B = 0 (one raster per line in 400-line mode); left at the 200-line value 1, everything is drawn twice as tall.
+- **The 60 Hz switch ($D06F bit 7)** resets the same registers a few frames later on hardware (Xemu does too). The game sets its video
+  registers again until they have stayed put twice in a row (about a second at start-up).
+- **Raster numbering.** After the switch to 60 Hz the first raster line is 7 ($D06F reads back $87), so a raster interrupt on line 0 never
+  fires. The sound interrupt uses line 32.
+- **Input.** Releasing the keyboard column lines and reading the joystick straight away reads garbage at 40 MHz: the line driven last has
+  not risen yet and "up" read as held. The game reads the joystick first, and waits after each column change. Diagonals (an 8-way
+  stick, or two cursor keys) are resolved to one direction, or the player turns on the spot every tick.
+- **Disk.** Mounting the .d81 over the network (m65 connect) once delivered bad data (a missing music channel and no sound effect on one
+  run; fine on the next). The loader only checks that each file loaded, not that the bytes are right. The SD card is the safe way.
+- Tools for finding such things are in `tools/hwdiag/` and `src/hwdiag.c` (`make diag`): they show register values and memory on
+  screen so a photo from the real machine can be compared with Xemu.

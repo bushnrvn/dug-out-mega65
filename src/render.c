@@ -64,15 +64,11 @@ static void tile_px(uint16_t tile, uint8_t *dst)
     else                         memcpy(dst, tunnel_tiles[tile - N_FIELD], 64);
 }
 
-/* character k (0..2) of a tile: the tile's pixel rows repeated 3x */
+/* character k (0..2) of a tile, copied from the finished characters in chip RAM */
 static void tile_char(uint16_t tile, uint8_t k, uint8_t *dst)
 {
-    uint8_t py, i;
-    tile_px(tile, tilebuf);
-    for (py = 0; py < 8; ++py) {
-        const uint8_t *row = tilebuf + ((k * 8 + py) / 3) * 8;
-        for (i = 0; i < 8; ++i) dst[py * 8 + i] = row[i];
-    }
+    uint32_t a = ((uint32_t)(CHAR_BASE + tile * 3 + k)) << 6;
+    dma_job_src(0x00, 64, (uint16_t)a, (uint8_t)(a >> 16), 0, (uint32_t)(uint16_t)dst);
 }
 
 static void build_tiles(void)
@@ -135,44 +131,67 @@ static uint8_t *dyn_for(uint8_t cc, uint8_t cr)
     return dyn_shadow[d];
 }
 
-/* one game pixel at plane position (X, Y) (X 0..127, Y 0..103): one character pixel across, three down */
-static void plot(int16_t X, int16_t Y, uint8_t v)
-{
-    uint16_t R;
-    uint8_t cc, cx, t;
-    if (X < 0 || X >= 128 || Y < 0 || Y >= 104) return;
-    cc = (uint8_t)X >> 3; cx = (uint8_t)X & 7;
-    for (t = 0; t < 3; ++t) {
-        R = 3 * (uint16_t)Y + t;
-        dyn_for(cc, (uint8_t)(R >> 3))[(R & 7) * 8 + cx] = v;
-    }
-}
+/* Pixels of one game row at plane position (X.., Y) are written three times (the row is three characters rows tall).
+ * The three character buffers are looked up once per 8 pixels. */
+#define ROW_PTR(cc, R) (dyn_for((cc), (uint8_t)((R) >> 3)) + (((R) & 7) << 3))
+#define ROW_SETUP(cc, rb) p0 = ROW_PTR(cc, rb); p1 = ROW_PTR(cc, (rb) + 1); p2 = ROW_PTR(cc, (rb) + 2)
 
 static void draw_box(int16_t X, int16_t Y, uint8_t w, uint8_t h, uint8_t v)
 {
-    uint8_t i, j;
-    for (j = 0; j < h; ++j)
-        for (i = 0; i < w; ++i) plot(X + i, Y + j, v);
+    uint8_t i, j, cc, last, cx;
+    uint8_t *p0, *p1, *p2;
+    int16_t xx, yy;
+    uint16_t rb;
+    for (j = 0; j < h; ++j) {
+        yy = Y + j;
+        if (yy < 0 || yy >= 104) continue;
+        rb = (uint16_t)yy * 3;
+        last = 255;
+        for (i = 0; i < w; ++i) {
+            xx = X + i;
+            if (xx < 0 || xx >= 128) continue;
+            cc = (uint8_t)xx >> 3;
+            if (cc != last) { last = cc; ROW_SETUP(cc, rb); }
+            cx = (uint8_t)xx & 7;
+            p0[cx] = v; p1[cx] = v; p2[cx] = v;
+        }
+    }
 }
 
 /* rows r0..r0+rows-1 of a sprite, with its top-left at plane position (X, Y) */
 static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
 {
     const SoftSprite *s = &soft_sprites[idx];
-    uint8_t w = s->w, h = s->h, sx, sy, n, b;
-    uint16_t i;
+    uint8_t w = s->w, h = s->h, sx, sy, n, b, cc, last, cx, v;
+    uint8_t *p0, *p1, *p2;
+    const uint8_t *pal = s->pal;
+    int16_t xx, yy;
+    uint16_t i, rb;
     if ((uint8_t)(r0 + rows) < h) h = r0 + rows;
-    for (sy = r0; sy < h; ++sy)
-        for (sx = 0; sx < w; ++sx) {
-            i = (uint16_t)sy * w + sx;
+    for (sy = r0; sy < h; ++sy) {
+        yy = Y + sy;
+        if (yy < 0 || yy >= 104) continue;
+        rb = (uint16_t)yy * 3;
+        i = (uint16_t)sy * w;
+        last = 255;
+        for (sx = 0; sx < w; ++sx, ++i) {
             b = s->px[i >> 1];
             n = (i & 1) ? (b & 15) : (b >> 4);
-            if (n) plot(X + sx, Y + sy, s->pal[n]);
+            if (!n) continue;
+            xx = X + sx;
+            if (xx < 0 || xx >= 128) continue;
+            cc = (uint8_t)xx >> 3;
+            if (cc != last) { last = cc; ROW_SETUP(cc, rb); }
+            cx = (uint8_t)xx & 7; v = pal[n];
+            p0[cx] = v; p1[cx] = v; p2[cx] = v;
         }
+    }
 }
 
-#define TICK_MIN 29500u                      /* 1.5 frames in timer ticks (a PAL frame is about 19650): the next frame boundary after that */
+#define FRAME_T   19968                      /* timer ticks in a PAL frame (64 cycles x 312 lines, measured in Xemu) */
+#define PERIOD_T  33280                      /* one game tick: 5/3 frames = 30 a second, as on the GameTank */
 static uint16_t last_flip;
+static int16_t tick_err;                     /* how far the flips have run ahead (-) or behind (+) of the ideal 30 a second */
 
 static void commit_and_show(void)
 {
@@ -186,11 +205,22 @@ static void commit_and_show(void)
     }
     dma_copy(scr, SCREEN_CHARS * 2, 0, (cur_buf ? SCREEN_B : SCREEN_A) + FIELD_OFS);
     wait_frame();
-    while ((uint16_t)(last_flip - timer_now()) < TICK_MIN) wait_frame();    /* a tick lasts two frames, or longer if the drawing did */
+    for (;;) {                                       /* flip on the first frame boundary that is due: ticks of 2, 1, 2, 2, 1, ... frames */
+        uint16_t e = last_flip - timer_now();
+        if ((int32_t)e + FRAME_T / 2 >= (int32_t)PERIOD_T - tick_err) break;
+        wait_frame();
+    }
     POKE(0xD061, cur_buf ? (uint8_t)(SCREEN_B >> 8) : (uint8_t)(SCREEN_A >> 8));        /* show it */
     POKE(0xD062, cur_buf ? (uint8_t)(SCREEN_B >> 16) : (uint8_t)(SCREEN_A >> 16));
+    {
+        uint16_t now = timer_now();
+        int32_t e = (uint16_t)(last_flip - now);
+        tick_err += (int16_t)(e - PERIOD_T);
+        if (tick_err > PERIOD_T) tick_err = PERIOD_T;
+        if (tick_err < -PERIOD_T) tick_err = -PERIOD_T;
+        last_flip = now;
+    }
     cur_buf ^= 1;
-    last_flip = timer_now();
 }
 
 /* ----------------------------------------------------------- the game -- */

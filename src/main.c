@@ -21,6 +21,7 @@ int main(void)
     uint8_t in, old = 0;
     __asm__("sei");                                  /* the ROM's interrupt routine would fight over the screen */
     POKE(0x00, 65);                                  /* 40 MHz */
+    timer_start();                                   /* a free-running clock: paces the game and seeds the caves */
 
     level = TEST_LEVEL; lives = 3; state = ST_PLAY;
 #ifdef TEST_EXIT
@@ -28,7 +29,6 @@ int main(void)
 #else
     run_seed = ((uint16_t)PEEK(0xDC05) << 8 | PEEK(0xDC04)) | 1u;     /* a timer that has been running since power-on */
 #endif
-    timer_start();
     build_level();
     render_init();
     render_frame(); render_frame();
@@ -71,7 +71,7 @@ int main(void)
         render_frame();                              /* waits for the next frame itself, so ticks are 2 frames apart */
     }
 #ifdef TEST_EXIT
-    score_h = frames_seen; score_t = 0; ++frame_ct;          /* the frame count shows up as the score */
+    score_h = frames_seen; ++frame_ct;          /* the frame count shows up as the score */
     render_frame();
     POKE(0xD6CF, 0x42);                              /* Xemu in -testing mode exits when this is written */
     for (;;) { }

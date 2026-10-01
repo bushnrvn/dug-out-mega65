@@ -12,6 +12,9 @@ void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t
 #define dma_copy(src, count, dst_mb, dst) dma_job(0x00, (count), (uint16_t)(src), (dst_mb), (dst))
 #define dma_fill(val, count, dst_mb, dst) dma_job(0x03, (count), (val), (dst_mb), (dst))
 
+/* the same, with the source in another 64K bank of the first megabyte (chip RAM is $20000 and up) */
+void dma_job_src(uint8_t cmd, uint16_t count, uint16_t src, uint8_t src_bank, uint8_t dst_mb, uint32_t dst);
+
 uint8_t read_input(void);    /* INPUT_MASK_* bits from the keyboard and joystick port 2 */
 uint16_t timer_now(void);    /* free-running, counts down */
 void timer_start(void);

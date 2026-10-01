@@ -3,7 +3,7 @@
 
 static uint8_t dmalist[16];
 
-void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t dst)
+void dma_job_src(uint8_t cmd, uint16_t count, uint16_t src, uint8_t src_bank, uint8_t dst_mb, uint32_t dst)
 {
     dmalist[0] = 0x0B;                     /* 12-byte list format */
     dmalist[1] = 0x81;                     /* destination MB follows */
@@ -14,7 +14,7 @@ void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t
     dmalist[6] = (uint8_t)(count >> 8);
     dmalist[7] = (uint8_t)src;             /* for a fill this is the fill value */
     dmalist[8] = (uint8_t)(src >> 8);
-    dmalist[9] = 0x00;                     /* source bank */
+    dmalist[9] = src_bank;                 /* source bank */
     dmalist[10] = (uint8_t)dst;
     dmalist[11] = (uint8_t)(dst >> 8);
     dmalist[12] = (uint8_t)((dst >> 16) & 0x0F);
@@ -24,6 +24,11 @@ void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t
     POKE(0xD702, 0x00);                    /* the list is in bank 0 */
     POKE(0xD701, (uint16_t)dmalist >> 8);
     POKE(0xD705, (uint8_t)(uint16_t)dmalist);   /* writing the LSB here runs an enhanced job */
+}
+
+void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t dst)
+{
+    dma_job_src(cmd, count, src, 0, dst_mb, dst);
 }
 
 uint16_t frames_seen;

@@ -21,7 +21,8 @@
 #define N_TILES      (N_FIELD + 16)
 #define SY           4                       /* screen rows per game pixel (and character rows per tile row) */
 #define SCREEN_ROWS  (FIELD_CH_ROWS * SY)
-#define HUD_ROWS     (16 * SY / 8)           /* the score strip above the field: 16 game pixels */
+#define HUD_H        12                      /* the score strip above the field, in game pixels */
+#define HUD_ROWS     (HUD_H * SY / 8)
 #define HUD_CHARS    (FIELD_CH_COLS * HUD_ROWS)
 #define HUD_CH0      5400u                   /* its characters (they never change places, only pixels) */
 #define SCREEN_CHARS (FIELD_CH_COLS * SCREEN_ROWS)
@@ -41,7 +42,7 @@
  * The picture is 512x360 (strip and field), so to centre it the text area starts at 144,124. A sprite at register (X, Y) has its left edge at
  * screen x = 2X+31 and its top at screen y = Y. */
 #define FIELD_X      144
-#define TEXT_Y       14                                   /* top of the strip: the 512x360 picture is centred in 400 rows */
+#define TEXT_Y       4                                    /* top of the strip: the 512x360 picture is centred in 400 rows */
 #define PIC_ROWS     ((HUD_ROWS + SCREEN_ROWS) * 8)       /* the whole picture, strip and field, in screen rows */
 #define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)
 
@@ -339,9 +340,10 @@ static void draw_doug(void)
 static uint8_t hud_lives, hud_level, hud_drawn;
 static uint16_t hud_score_h; static uint8_t hud_score_t;
 
-#define HUD_TEXT_R0  ((5 * SY) / 8)            /* the text and the life icons are game rows 5-10 */
-#define HUD_TEXT_R1  ((11 * SY + 7) / 8)
-static const uint8_t HUD_SRC_ROW[64] = { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 15 };
+#define HUD_TY       3                       /* the text and the life icons are game rows 3-8 of the strip */
+#define HUD_TEXT_R0  ((HUD_TY * SY) / 8)
+#define HUD_TEXT_R1  (((HUD_TY + 6) * SY + 7) / 8)
+static const uint8_t HUD_SRC_ROW[48] = { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11 };
 
 static void hud_text(uint8_t x, uint8_t y, const char *str, uint8_t set)
 {
@@ -369,20 +371,20 @@ static void hud_build(void)
     uint8_t i, j, n, cx, cy, py;
     uint16_t v;
     char buf[8];
-    memset(hud_pic, COL_INK, 16 * 128);
-    memset(hud_pic[15], COL_RIM, 128);
+    memset(hud_pic, COL_INK, HUD_H * 128);
+    memset(hud_pic[HUD_H - 1], COL_RIM, 128);
     v = score_h;
     for (i = 5; i > 0; --i) { buf[i - 1] = '0' + (v % 10); v /= 10; }
     buf[5] = '0' + score_t; buf[6] = '0'; buf[7] = 0;
-    hud_text(10, 5, "RUNS", 1);
-    hud_text(30, 5, buf, 0);
-    hud_text(62, 5, "INN", 1);
+    hud_text(10, HUD_TY, "RUNS", 1);
+    hud_text(30, HUD_TY, buf, 0);
+    hud_text(62, HUD_TY, "INN", 1);
     buf[0] = '0' + (level / 10) % 10; buf[1] = '0' + level % 10; buf[2] = 0;
-    hud_text(74, 5, buf, 0);
+    hud_text(74, HUD_TY, buf, 0);
     for (n = 0; n < lives && n < 5; ++n)
         for (j = 0; j < 6; ++j)
             for (i = 0; i < 8; ++i)
-                if (life_px[j * 8 + i]) hud_pic[5 + j][121 - (n << 3) - 8 + i] = life_px[j * 8 + i];
+                if (life_px[j * 8 + i]) hud_pic[HUD_TY + j][121 - (n << 3) - 8 + i] = life_px[j * 8 + i];
     /* each character row is 8 screen rows = 8/3 game rows */
     for (cy = hud_drawn ? HUD_TEXT_R0 : 0; cy < (hud_drawn ? HUD_TEXT_R1 : HUD_ROWS); ++cy)   /* only the rows with text after the first time */
         for (cx = 0; cx < FIELD_CH_COLS; ++cx) {

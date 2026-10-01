@@ -35,8 +35,12 @@ for l in open(S + '/labels.txt'):
 d = open(S + '/mem.bin', 'rb').read()
 g = lambda n, i=0: d[m['._' + n] + i]
 ES = ['NONE', 'WALK', 'GHOST', 'INFL', 'POP', 'SQUASH', 'FLAME']
-print('score(hundreds)', g('score_h') | (g('score_h', 1) << 8), 'state', g('state'), 'level', g('level'), 'lives', g('lives'), 'enemies_left', g('enemies_left'), 'Doug', g('px'), g('py'))
+print('score', (g('score_h') | (g('score_h', 1) << 8)) * 100 + g('score_t') * 10, 'state', g('state'), 'level', g('level'), 'lives', g('lives'), 'enemies_left', g('enemies_left'), 'Doug', g('px'), g('py'))
 for i in range(6):
     print(' enemy %d type %d %-6s at (%3d,%3d) strikes %d timer %d' % (i, g('e_type', i), ES[g('e_state', i)], g('e_x', i), g('e_y', i), g('e_infl', i), g('e_timer', i)))
+if os.environ.get('PRINT_MAP'):
+    print(' map (. = dug, # = dirt, 2 = boulder cell):')
+    for r in range(14):
+        print('  ' + ''.join('.' if g('map', r * 16 + c) == 0 else '#' if g('map', r * 16 + c) == 1 else '2' for c in range(14)))
 for i in range(3):
     if g('c_on', i): print(' headstone', i, 'of enemy', g('c_slot', i), 'at', g('c_x', i), g('c_y', i))

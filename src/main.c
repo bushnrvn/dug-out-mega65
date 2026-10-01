@@ -8,6 +8,9 @@
 #ifndef TEST_LEVEL
 #define TEST_LEVEL 1
 #endif
+#ifndef TEST_DIST
+#define TEST_DIST 24
+#endif
 #ifndef TEST_LIVES
 #define TEST_LIVES 3
 #endif
@@ -207,6 +210,31 @@ int main(void)
     enemies_left = 0;
 #endif
 #endif
+#ifdef TEST_HEATER
+    {   /* inning 2: Doug in a cleared row, TEST_DIST pixels from the Heater (enemy 1), facing it, with nothing else about */
+        unsigned char hc = e_x[1] >> 3, hr = e_y[1] >> 3, c;
+        e_state[0] = ES_NONE; enemies_left = 1;
+        if (e_x[1] >= TEST_DIST) { px = e_x[1] - TEST_DIST; pdir = DIR_R; for (c = (px >> 3); c <= hc; ++c) M(c, hr) = 0; }
+        else                     { px = e_x[1] + TEST_DIST; pdir = DIR_L; for (c = hc; c <= (px >> 3); ++c) M(c, hr) = 0; }
+        py = e_y[1];
+    }
+#endif
+#ifdef TEST_BAT
+    {   /* inning 3: only the baseball bat (the last enemy) is left; Doug stands still */
+        unsigned char k;
+        for (k = 0; k < MAXE; ++k) if (e_state[k] != ES_NONE && e_type[k] != 2) e_state[k] = ES_NONE;
+        enemies_left = 1;
+    }
+#endif
+#ifdef TEST_GK
+    {   /* inning 5: only the Groundskeeper; every cell of his pocket looks dug by Doug for 40 points, and Doug has 10,000 */
+        unsigned char k, c, r = 0;
+        for (k = 0; k < MAXE; ++k) { if (e_state[k] != ES_NONE && e_type[k] != 3) e_state[k] = ES_NONE; else if (e_type[k] == 3) r = e_homer[k]; }
+        enemies_left = 1;
+        for (c = 0; c < COLS; ++c) if (M(c, r) == 0) paid[(r << 4) | c] = 4;
+        score_h = 100; score_t = 0; score_dirty = 1;
+    }
+#endif
 #ifdef TEST_BOSS
 #ifndef TEST_BOSS_DIST
 #define TEST_BOSS_DIST 32
@@ -324,7 +352,7 @@ int main(void)
         render_frame();                              /* waits for the next frame itself, so ticks are 2 frames apart */
     }
 #ifdef TEST_EXIT
-score_h = frames_seen; ++frame_ct;          /* the frame count shows up as the score */
+++frame_ct;
     render_frame();
     POKE(0xD6CF, 0x42);                              /* Xemu in -testing mode exits when this is written */
     for (;;) { }

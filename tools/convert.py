@@ -133,6 +133,20 @@ for sh, n in SOFT:
         packed.append((a << 4) | b)
     soft.append((n, w, h, packed, [0] + cols + [0] * (15 - len(cols))))
 
+# ---- the HUD font: 4x6 glyphs (two colour sets of 41), plus the 8x6 life icon, one byte per pixel (0 = clear)
+def art_const(name):
+    return int(re.search(r'#define %s (\d+)' % name, art).group(1))
+
+
+FONT_X, FONT_Y = art_const('SP_FONT_X'), art_const('SP_FONT_Y')
+LIFE_X, LIFE_Y = art_const('SP_LIFE_X'), art_const('SP_LIFE_Y')
+COL_INK, COL_RIM = art_const('COL_INK'), art_const('COL_RIM')
+font = []
+for cell in range(82):
+    gx, gy = FONT_X + ((cell & 31) << 2), FONT_Y + (cell >> 5) * 6
+    font.append([spr_sheet[gy + j][gx + i] for j in range(6) for i in range(4)])
+life = [spr_sheet[LIFE_Y + j][LIFE_X + i] for j in range(6) for i in range(8)]
+
 doug_names = ['doug_%d_%d' % (d, f) for d in range(4) for f in range(2)] + ['doug_x0', 'doug_x1']
 doug_data, doug_pal = make_actor(doug_names)
 
@@ -156,6 +170,8 @@ with open(os.path.join(ROOT, 'src', 'data.h'), 'w') as f:
     f.write('/* the first N_BIG field characters sit in the DMA-only area above $D000, the rest in normal memory */\n#define N_BIG %d\n' % N_BIG)
     f.write('extern const unsigned char field_tiles_a[%d][64];\nextern const unsigned char field_tiles_b[%d][64];\nextern const unsigned char tunnel_tiles[16][64];\n' % (N_BIG, len(field) - N_BIG))
     f.write('extern const unsigned char palette_rgb[256][3];\n')
+    f.write('#define COL_INK %d\n#define COL_RIM %d\n' % (COL_INK, COL_RIM))
+    f.write('/* HUD font: glyph = set * 41 + index, 4x6 pixels each; the life icon is 8x6 */\nextern const unsigned char font_px[82][24];\nextern const unsigned char life_px[48];\n')
     f.write('#define SPRITE_BYTES %d\n#define DOUG_FRAMES %d\n' % (SPR_ROWS * 8, len(doug_data)))
     f.write('extern const unsigned char doug_frames[%d][%d];\nextern const unsigned char doug_pal[16][3];\n#endif\n' % (len(doug_data), SPR_ROWS * 8))
 with open(os.path.join(ROOT, 'src', 'data.c'), 'w') as f:
@@ -170,6 +186,10 @@ with open(os.path.join(ROOT, 'src', 'data.c'), 'w') as f:
     for r, g, b in doug_pal:
         f.write('    { %d, %d, %d },\n' % (r, g, b))
     f.write('};\n\n')
+    f.write('const unsigned char font_px[82][24] = {\n')
+    for g in font:
+        f.write('    { ' + ', '.join(str(v) for v in g) + ' },\n')
+    f.write('};\n\nconst unsigned char life_px[48] = { ' + ', '.join(str(v) for v in life) + ' };\n\n')
     f.write('const unsigned char palette_rgb[256][3] = {\n')
     for r, g, b in pal:
         f.write('    { %d, %d, %d },\n' % (r, g, b))

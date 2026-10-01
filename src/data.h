@@ -10,6 +10,11 @@ extern const unsigned char field_tiles_a[156][64];
 extern const unsigned char field_tiles_b[52][64];
 extern const unsigned char tunnel_tiles[16][64];
 extern const unsigned char palette_rgb[256][3];
+#define COL_INK 136
+#define COL_RIM 215
+/* HUD font: glyph = set * 41 + index, 4x6 pixels each; the life icon is 8x6 */
+extern const unsigned char font_px[82][24];
+extern const unsigned char life_px[48];
 #define SPRITE_BYTES 192
 #define DOUG_FRAMES 10
 extern const unsigned char doug_frames[10][192];

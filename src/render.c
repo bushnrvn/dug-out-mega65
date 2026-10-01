@@ -20,7 +20,12 @@
 #define TUNNEL_TILE0 N_FIELD                 /* tiles 208..223 are the tunnel tiles */
 #define N_TILES      (N_FIELD + 16)
 #define SCREEN_ROWS  (FIELD_CH_ROWS * 3)
+#define HUD_ROWS     6                       /* the score strip above the field: 16 game pixels = 6 character rows */
+#define HUD_CHARS    (FIELD_CH_COLS * HUD_ROWS)
+#define HUD_CH0      5400u                   /* its characters (they never change places, only pixels) */
 #define SCREEN_CHARS (FIELD_CH_COLS * SCREEN_ROWS)
+#define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
+#define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
 #define DYN_MAX      96                      /* characters that can be unique to one frame */
 #define POOL_A       5000u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)
@@ -32,10 +37,11 @@
 #define XSCL         30                      /* character width = about 980/XSCL pixels: 30 gives 32, i.e. 4x (measured in Xemu) */
 
 /* Layout on the 640x400 display (window x 80..720, y 104..504), in physical pixels, all measured in Xemu.
- * The picture is 512x312, so to centre it the text area starts at 144,148. A sprite at register (X, Y) has its left edge at
+ * The picture is 512x360 (strip and field), so to centre it the text area starts at 144,124. A sprite at register (X, Y) has its left edge at
  * screen x = 2X+31 and its top at screen y = Y. */
 #define FIELD_X      144
-#define FIELD_Y      148
+#define TEXT_Y       124                                  /* top of the strip: the 512x360 picture is centred in 400 rows */
+#define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)
 #define SCR_X(gx)    (FIELD_X + 32 + (gx) * 4)            /* game x (0 = left edge of cell 0) -> screen x */
 #define SCR_Y(gy)    (FIELD_Y + (gy) * 3)
 #define SPR_REG_X(sx) (((sx) - 31) / 2)
@@ -175,7 +181,7 @@ static void commit_and_show(void)
         dma_copy(dyn_shadow[d], 64, 0, ((uint32_t)(pool + d)) << 6);
         scr[cell >> 4][cell & 15] = pool + d;
     }
-    dma_copy(scr, SCREEN_CHARS * 2, 0, cur_buf ? SCREEN_B : SCREEN_A);
+    dma_copy(scr, SCREEN_CHARS * 2, 0, (cur_buf ? SCREEN_B : SCREEN_A) + FIELD_OFS);
     wait_frame();
     POKE(0xD061, cur_buf ? (uint8_t)(SCREEN_B >> 8) : (uint8_t)(SCREEN_A >> 8));        /* show it */
     POKE(0xD062, cur_buf ? (uint8_t)(SCREEN_B >> 16) : (uint8_t)(SCREEN_A >> 16));
@@ -313,10 +319,75 @@ static void show_doug(void)
     POKE(0xD077, (sy >> 8) ? 0x01 : 0x00);           /* top bit of sprite 0's Y */
 }
 
+/* ------------------------------------------------------------------- HUD -- */
+/* The strip is drawn into a 128x16 picture (one byte per game pixel, in the sprite copies' spare memory), then cut into its 96 characters. It only
+ * changes when the score, lives or inning do. */
+#define hud_pic ((uint8_t (*)[128])dyn_shadow)          /* the sprite copies are free at this point of a frame */
+static uint8_t hud_lives, hud_level, hud_drawn;
+static uint16_t hud_score_h; static uint8_t hud_score_t;
+
+static void hud_text(uint8_t x, uint8_t y, const char *str, uint8_t set)
+{
+    uint8_t ch, idx, i, j;
+    const uint8_t *g;
+    while ((ch = (uint8_t)*str++) != 0) {
+        if (ch >= 'A' && ch <= 'Z') idx = ch - 'A';
+        else if (ch >= '0' && ch <= '9') idx = 26 + ch - '0';
+        else if (ch == '-') idx = 36;
+        else if (ch == ':') idx = 37;
+        else if (ch == '!') idx = 38;
+        else if (ch == '.') idx = 39;
+        else if (ch == '\'') idx = 40;
+        else { x += 4; continue; }
+        g = font_px[set * 41 + idx];
+        for (j = 0; j < 6; ++j)
+            for (i = 0; i < 4; ++i)
+                if (g[j * 4 + i]) hud_pic[y + j][x + i] = g[j * 4 + i];
+        x += 4;
+    }
+}
+
+static void hud_build(void)
+{
+    uint8_t i, j, n, cx, cy, py, px;
+    uint16_t v;
+    char buf[8];
+    memset(hud_pic, COL_INK, sizeof hud_pic);
+    memset(hud_pic[15], COL_RIM, 128);
+    v = score_h;
+    for (i = 5; i > 0; --i) { buf[i - 1] = '0' + (v % 10); v /= 10; }
+    buf[5] = '0' + score_t; buf[6] = '0'; buf[7] = 0;
+    hud_text(10, 5, "RUNS", 1);
+    hud_text(30, 5, buf, 0);
+    hud_text(62, 5, "INN", 1);
+    buf[0] = '0' + (level / 10) % 10; buf[1] = '0' + level % 10; buf[2] = 0;
+    hud_text(74, 5, buf, 0);
+    for (n = 0; n < lives && n < 5; ++n)
+        for (j = 0; j < 6; ++j)
+            for (i = 0; i < 8; ++i)
+                if (life_px[j * 8 + i]) hud_pic[5 + j][121 - (n << 3) - 8 + i] = life_px[j * 8 + i];
+    /* each character row is 8 screen rows = 8/3 game rows */
+    for (cy = 0; cy < HUD_ROWS; ++cy)
+        for (cx = 0; cx < FIELD_CH_COLS; ++cx) {
+            for (py = 0; py < 8; ++py)
+                for (px = 0; px < 8; ++px)
+                    charbuf[py * 8 + px] = hud_pic[(cy * 8 + py) / 3][cx * 8 + px];
+            dma_copy(charbuf, 64, 0, ((uint32_t)(HUD_CH0 + cy * FIELD_CH_COLS + cx)) << 6);
+        }
+    hud_score_h = score_h; hud_score_t = score_t; hud_lives = lives; hud_level = level; hud_drawn = 1;
+}
+
+static void hud_update(void)
+{
+    if (!hud_drawn || score_h != hud_score_h || score_t != hud_score_t || lives != hud_lives || level != hud_level)
+        hud_build();
+}
+
 void render_frame(void)
 {
     uint8_t i;
     if (field_dirty) { rebuild_base(); field_dirty = 0; }
+    hud_update();
     dyn_n = 0;
     memset(dyn_of, 0xFF, sizeof dyn_of);
     draw_rocks();
@@ -342,8 +413,11 @@ static void set_palette(uint8_t bank_sel, const uint8_t (*rgb)[3], uint16_t n)
     }
 }
 
+static uint16_t hud_map[HUD_CHARS];
+
 void render_init(void)
 {
+    uint8_t i;
     POKE(0xD02F, 0x47); POKE(0xD02F, 0x53);          /* unlock the VIC-IV registers */
     POKE(0xD030, PEEK(0xD030) | 0x04);               /* colours 0-15 come from the palette RAM too */
     /* palette bank 1 (mapped in) is for the characters; bank 2 is for the sprites */
@@ -356,7 +430,7 @@ void render_init(void)
     POKE(0xD05A, XSCL);                              /* characters 4x wide */
     POKE(0xD05E, FIELD_CH_COLS);                     /* characters per row */
     POKE(0xD058, FIELD_CH_COLS * 2); POKE(0xD059, 0);/* bytes per row */
-    POKE(0xD07B, SCREEN_ROWS - 1);                   /* rows, minus one */
+    POKE(0xD07B, HUD_ROWS + SCREEN_ROWS - 1);                   /* rows, minus one */
     POKE(0xD060, (uint8_t)SCREEN_A);
     POKE(0xD061, (uint8_t)(SCREEN_A >> 8));
     POKE(0xD062, (uint8_t)(SCREEN_A >> 16));
@@ -365,11 +439,11 @@ void render_init(void)
     POKE(0xD065, (uint8_t)(COLOUR_OFS >> 8));
     POKE(0xD04C, (uint8_t)FIELD_X);                  /* text area start: centre the picture in the window */
     POKE(0xD04D, (PEEK(0xD04D) & 0xF0) | (FIELD_X >> 8));
-    POKE(0xD04E, (uint8_t)FIELD_Y);
-    POKE(0xD04F, (PEEK(0xD04F) & 0xF0) | (FIELD_Y >> 8));
+    POKE(0xD04E, (uint8_t)TEXT_Y);
+    POKE(0xD04F, (PEEK(0xD04F) & 0xF0) | (TEXT_Y >> 8));
 
     build_tiles();
-    dma_fill(0, SCREEN_CHARS * 2, 0xFF, 0x80000UL + COLOUR_OFS);       /* colour RAM: plain characters */
+    dma_fill(0, TOTAL_CHARS * 2, 0xFF, 0x80000UL + COLOUR_OFS);       /* colour RAM: plain characters */
 
     /* Doug: every frame, then sprite 0 */
     dma_copy(doug_frames, (uint16_t)DOUG_FRAMES * SPRITE_BYTES, 0, SPRITE_DATA);
@@ -382,6 +456,9 @@ void render_init(void)
     POKE(0xD076, 0x01);                              /* native vertical resolution for sprite 0 */
     POKE(0xD015, 0x01);                              /* sprite 0 on */
 
+    for (i = 0; i < HUD_CHARS; ++i) { hud_map[i] = HUD_CH0 + i; }
+    dma_copy(hud_map, HUD_CHARS * 2, 0, SCREEN_A);
+    dma_copy(hud_map, HUD_CHARS * 2, 0, SCREEN_B);
     field_dirty = 1;
     rebuild_base();
     field_dirty = 0;

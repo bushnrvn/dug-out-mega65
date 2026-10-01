@@ -102,7 +102,7 @@ static void end_run(uint8_t to)                         /* game over or victory 
 
 static void new_game(void)
 {
-    level = 1; lives = TEST_LIVES; score_h = 0; score_t = 0; next_life_h = 300;
+    level = 1; lives = TEST_LIVES; score_h = 0; score_t = 0; next_life_h = 100;
     hi_at_start_h = hi_h; hi_at_start_t = hi_t; new_best = 0;
 #ifndef TEST_EXIT
     run_seed = (timer_now() ^ ((uint16_t)frame_ct << 8)) | 1u;      /* new caves every game */
@@ -186,7 +186,7 @@ int main(void)
     POKE(0x00, 65);                                  /* 40 MHz */
     timer_start();                                   /* a free-running clock: paces the game and seeds the caves */
 
-    level = TEST_LEVEL; lives = TEST_LIVES; next_life_h = 300;
+    level = TEST_LEVEL; lives = TEST_LIVES; next_life_h = 100;
 #if defined(TEST_EXIT) && !defined(TEST_TITLE)
     state = ST_PLAY;                                 /* test builds go straight into the game, unless asked for the title */
 #else

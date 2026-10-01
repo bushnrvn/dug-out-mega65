@@ -297,9 +297,8 @@ static void draw_enemy(uint8_t i)
     int16_t x = 8 + e_x[i], y = e_y[i];
     f = ((frame_ct >> 2) & 1);
     k = e_face[i] * 2 + f;
-    if (e_type[i] == 1 && (st == ES_WALK || st == ES_FLAME)) {          /* the two fireballs circling a Heater */
-        for (sz = 0; sz < 2; ++sz)
-            draw_soft(S_FLAME[(f + sz) & 1], x + ORB_X[ORB_K(sz)], y + ORB_Y[ORB_K(sz)], 0, 8);
+    if (e_type[i] == 1 && (st == ES_WALK || st == ES_FLAME)) {          /* the fireball circling a Heater */
+        draw_soft(S_FLAME[f & 1], x + ORB_X[ORB_K(0)], y + ORB_Y[ORB_K(0)], 0, 8);
     }
     switch (st) {
     case ES_WALK:

@@ -103,3 +103,9 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
   the picture looks wider than it is on a real display.
 - **Scanlines and other user settings.** The game sets only the layout registers listed above and never writes a scanline or video-filter
   setting. It uses the 400-line mode, where every line carries picture data.
+
+## Gameplay changes made together with the GameTank version (unreleased there)
+- The Heater's flame hurts only where it is drawn, and one fireball (not two) circles each Heater, with its hit box matching.
+- A stunned enemy kills Doug on touch (the Groundskeeper still does not). Bats leave their pocket after 100 ticks instead of 150.
+- Extra life every 10,000 points (`next_life_h`, in hundreds, was 300).
+- Game over screen: a dark backing behind "YOU'RE OUT!" and the dot grid cleared from the "STRIKE 3" plaque's lettering (tools/convert.py).

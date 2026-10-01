@@ -331,7 +331,11 @@ def art_to_file(img):
 
 
 over = load_art('over.bmp')
+img_box(over, 64 - 11 * 2 - 2, 29, 11 * 4 + 3, 9, COL_INK)     # a dark backing, so the art's dots do not run through the letters
 img_text_center(over, 31, "YOU'RE OUT!", 1)
+for y in range(39, 49):                                          # the STRIKE 3 plaque: its dot grid (colour 92) ran through the lettering
+    for x in range(31, 98):
+        if over[y][x] == 92: over[y][x] = COL_INK
 score_plaque(over)
 win = load_art('end.bmp')
 img_box(win, 14, 34, 100, 22, COL_INK)

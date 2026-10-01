@@ -27,6 +27,9 @@ extern unsigned char paid[(ROWS + 1) * 16];
 #define M(c, r) map[(((unsigned char)(r)) << 4) | ((unsigned char)(c))]
 
 extern unsigned char state, state_timer, frame_ct, level, lives;
+extern unsigned char bob;                  /* 1 while the player and the walkers nod their heads (on the theme's snare hits) */
+void beat_start(void);                     /* the theme has just started */
+void beat_tick(void);                      /* once per game tick */
 extern unsigned int score_h, hi_h, next_life_h;
 extern unsigned char score_t, hi_t, score_dirty;
 extern unsigned char new_best;      /* the run that just ended set a new best score (defined in main.c) */

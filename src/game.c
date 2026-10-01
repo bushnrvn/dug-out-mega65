@@ -67,6 +67,29 @@ unsigned char enemies_left, espeed;
 unsigned char r_on[MAXR], r_c[MAXR], r_r[MAXR], r_y[MAXR], r_state[MAXR], r_timer[MAXR], r_kills[MAXR];
 unsigned char pop_t[MAXP], pop_x[MAXP], pop_y[MAXP];
 unsigned int pop_v[MAXP];
+
+/* The beat. The theme's snare hits fall on a grid 52.15 frames apart (26.075 game ticks), the first 26.9 frames into the song, and the song
+ * (8371 frames) loops. beat_acc is how far into a beat it is, in 1/256 ticks; bob is set for the first part of each beat, when the player and
+ * the walkers nod their heads. */
+#define BEAT_FP    6675u
+#define BEAT_START (6675u - 3443u)
+#define BEAT_WIN   1280u
+#define SONG_LEN   8371u
+static unsigned int beat_acc, song_t;
+static unsigned char beat_on;
+unsigned char bob;
+
+void beat_start(void) { beat_acc = BEAT_START; song_t = 0; beat_on = 1; }
+
+void beat_tick(void)
+{
+    if (beat_on) {
+        beat_acc += 256; song_t += 2;
+        if (beat_acc >= BEAT_FP) beat_acc -= BEAT_FP;
+        if (song_t >= SONG_LEN) { song_t -= SONG_LEN; beat_acc = BEAT_START + song_t * 128u; }      /* the song starts again, and so does the grid */
+    }
+    bob = (beat_on && (state == ST_PLAY || state == ST_PAUSE) && beat_acc < BEAT_WIN);
+}
 unsigned char gold_on, gold_c, gold_r;
 
 

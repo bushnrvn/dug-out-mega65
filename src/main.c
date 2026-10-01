@@ -201,6 +201,9 @@ int main(void)
     score_h = 107; score_t = 0; hi_h = 107; hi_t = 0; new_best = 1; state = TEST_START; icur = intro_for_level(level);      /* a screenshot of the game over or victory screen */
 #endif
     build_level();
+#ifdef TEST_EXIT
+    beat_start();                                    /* test builds skip the READY banner, so start the beat here */
+#endif
 #ifdef TEST_REVIVE
     e_state[0] = ES_NONE;                            /* Vumpire 0 is out, its headstone lies under Vumpire 1: the revival should start */
     c_on[0] = 1; c_slot[0] = 0; c_x[0] = e_x[1]; c_y[0] = e_y[1];
@@ -303,6 +306,7 @@ int main(void)
         player1_new_buttons = in & ~old;
         old = in;
         ++frame_ct;
+        beat_tick();
         if (state == ST_TITLE) {
             if (player1_buttons) idle_t = 0; else ++idle_t;
             if (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)) new_game();
@@ -334,6 +338,7 @@ int main(void)
                 render_banner_off();
                 state = ST_PLAY; state_timer = 0;
                 snd_song(SONG_THEME, 1);
+                beat_start();
             }
         } else if (state == ST_PAUSE) {
             if (!paused_shown) { render_banner("PAUSED", 0); paused_shown = 1; }

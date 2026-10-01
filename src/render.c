@@ -35,7 +35,7 @@
 #define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
 #define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
 #ifndef DYN_MAX
-#define DYN_MAX      152                     /* characters that can be unique to one frame (the most seen: 134, on the victory screen) */
+#define DYN_MAX      140                     /* characters that can be unique to one frame (the most seen: 134, on the victory screen) */
 #endif
 #define POOL_A       1316u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)
@@ -291,6 +291,14 @@ static void draw_mark(uint8_t i, int16_t x, int16_t y)
     draw_soft(S_MARK[m], x, y - ((e_type[i] == 4) ? 12 : 8), 0, 6);
 }
 
+/* a sprite whose top hd rows (the head) drop a pixel on the beat */
+static void draw_bob(uint8_t idx, int16_t x, int16_t y, uint8_t hd, uint8_t h)
+{
+    if (!bob) { draw_soft(idx, x, y, 0, h); return; }
+    draw_soft(idx, x, y, hd, h - hd);
+    draw_soft(idx, x, y + 1, 0, hd);
+}
+
 static void draw_enemy(uint8_t i)
 {
     uint8_t st = e_state[i], f, sz, k;
@@ -302,10 +310,10 @@ static void draw_enemy(uint8_t i)
     }
     switch (st) {
     case ES_WALK:
-        if (e_type[i] == 4) { draw_soft(S_MASCOT[k], x - 4, y - 4, 0, 16); if (e_infl[i]) draw_mark(i, x, y); }
-        else if (e_type[i] == 3) draw_soft(S_GK[k], x, y, 0, 8);
+        if (e_type[i] == 4) { draw_bob(S_MASCOT[k], x - 4, y - 4, 10, 16); if (e_infl[i]) draw_mark(i, x, y); }
+        else if (e_type[i] == 3) draw_bob(S_GK[k], x, y, 5, 8);
         else if (e_type[i])      draw_soft(S_EMB[k], x, y, 0, 8);
-        else                     draw_soft(S_GRUB[k], x, y, 0, 8);
+        else                     draw_bob(S_GRUB[k], x, y, 5, 8);
         break;
     case ES_FLAME:
         if (e_type[i] == 0) {                                            /* ritual: the Vumpire glows red */
@@ -392,7 +400,8 @@ static void draw_doug(void)
 {
     uint8_t f = (frame_ct >> 2) & 1;
     uint8_t idx = (state == ST_DYING) ? (uint8_t)(SPR_DOUG_X0 + f) : (uint8_t)(SPR_DOUG_0_0 + pdir * 2 + (pmoving ? ((panim >> 2) & 1) : 0));
-    draw_soft(idx, 8 + px, py, 0, 8);
+    if (state == ST_DYING) draw_soft(idx, 8 + px, py, 0, 8);
+    else draw_bob(idx, 8 + px, py, 5, 8);
 }
 
 /* ------------------------------------------------------------------- HUD -- */

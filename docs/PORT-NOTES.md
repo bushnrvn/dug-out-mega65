@@ -125,3 +125,8 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
   not joined to its own (`region_mark`, a flood fill over open cells, using the same scratch arrays as the fleeing search), so it works its way
   from one sealed cave to the next, leaving a tunnel. Its cells are marked `paid[] = 0x10`; `refill_cell` now only rakes cells that Doug was paid
   for (`paid` 1-4), so it never closes a cave or its own tunnel. In a 900-tick test at inning 5 it joined five caves in a chain.
+- Head bob: the player and the walking enemies (Vumpires, Groundskeepers, Mad Scott; not Heaters or bats) drop their heads a pixel on the beat
+  while the theme plays (`bob`, `draw_bob`). The beat is `beat_tick` in game.c: the theme's snare hits fall on a grid 52.15 frames (26.075
+  game ticks) apart, the first 26.9 frames in, and the song (8371 frames) loops, so the counter restarts with it. `beat_start` is called when
+  the theme starts. It assumes ticks of exactly two frames; a slow frame would drift the nod a little until the song loops.
+  DYN_MAX went down to 140 to make room for the code.

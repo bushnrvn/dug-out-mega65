@@ -27,7 +27,14 @@ src/data.c src/data.h src/sprites.c src/sprites.h $(filter-out %SOUND.BIN,$(DATA
 build/assets/SOUND.BIN: tools/make_sound.py $(wildcard assets/audio/*)
 	python3 tools/make_sound.py
 
+# a hardware-check build (run it as DUGOUT, like the game): shows memory and video-chip facts on screen; see src/hwdiag.c
+build/dugout-diag.d81: $(SRCS) src/hwdiag.c src/hwdiag.h $(DATA) $(CFG) tools/mkd81.py
+	$(CL65) -t mega65 -C $(CFG) -O -DHW_DIAG -o build/dugout-diag.prg $(SRCS) src/hwdiag.c
+	python3 tools/mkd81.py $@ "DUG OUT DIAG" DUGOUT=build/dugout-diag.prg TILES=build/assets/TILES.BIN TITLE=build/assets/TITLE.BIN OVER=build/assets/OVER.BIN WIN=build/assets/WIN.BIN SOUND=build/assets/SOUND.BIN SPRITES=build/assets/SPRITES.BIN INTRO=build/assets/INTRO.BIN
+
+diag: build/dugout-diag.d81
+
 clean:
 	rm -rf build
 
-.PHONY: all clean
+.PHONY: all clean diag

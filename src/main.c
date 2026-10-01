@@ -4,6 +4,9 @@
 #include "game.h"
 #include "render.h"
 #include "sound.h"
+#ifdef HW_DIAG
+#include "hwdiag.h"
+#endif
 
 #ifndef TEST_LEVEL
 #define TEST_LEVEL 1
@@ -258,6 +261,9 @@ int main(void)
     snd_song(TEST_MUSIC, 1);
 #endif
     render_frame(); render_frame();
+#ifdef HW_DIAG
+    hw_diag_post();
+#endif
 #ifdef TEST_ENDRUN
     score_h = 4321; score_t = 3; hi_h = 4321; hi_t = 3; hi_at_start_h = 0; hi_at_start_t = 0;
     end_run(ST_OVER);                                /* a run that ends at once with a new best score: tests saving it */

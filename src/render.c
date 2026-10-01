@@ -726,16 +726,12 @@ static void set_palette(uint8_t bank_sel, const uint8_t (*rgb)[3], uint16_t n)
     }
 }
 
-void render_init(void)
+static void video_regs(void)
 {
-    uint8_t i;
-    POKE(0xD02F, 0x47); POKE(0xD02F, 0x53);          /* unlock the VIC-IV registers */
-    POKE(0xD06F, PEEK(0xD06F) | 0x80);               /* 60 Hz (NTSC) timing, so two frames are exactly one 30 Hz game tick */
-    wait_frame(); wait_frame(); wait_frame();        /* let the mode change settle before the registers that it resets are set */
+    POKE(0xD05D, PEEK(0xD05D) & 0x7F);               /* HOTREG off: otherwise the chip recomputes the layout from the VIC-II registers whenever they are touched,
+                                                        which on real hardware wipes the settings below */
     POKE(0xD030, PEEK(0xD030) | 0x04);               /* colours 0-15 come from the palette RAM too */
-    /* palette bank 1 (mapped in) is for the characters */
-    set_palette(0x40 | 0x10 | 0x08, palette_rgb, 256);
-    POKE(0xD070, 0x10 | 0x08);                       /* characters use bank 1, sprites bank 2 */
+    POKE(0xD070, 0x10 | 0x08);                       /* characters use palette bank 1, sprites bank 2 */
     POKE(0xD020, BLANK_PIXEL); POKE(0xD021, BLANK_PIXEL);
     POKE(0xD031, PEEK(0xD031) | 0x88);               /* H640 + V400: 640x400. (Writing $D031 resets the registers below.) */
     POKE(0xD054, 0x05);                              /* CHR16 (13-bit character numbers) + full-colour for chars > $FF */
@@ -758,7 +754,25 @@ void render_init(void)
     POKE(0xD04A, (uint8_t)(TEXT_Y + PIC_ROWS));
     POKE(0xD04B, (PEEK(0xD04B) & 0xF0) | ((TEXT_Y + PIC_ROWS) >> 8));
     POKE(0xD05C, 0x10);                              /* narrow side borders */
-    POKE(0xD05D, PEEK(0xD05D) & 0xC0);
+    POKE(0xD05D, PEEK(0xD05D) & 0x40);
+}
+
+void render_init(void)
+{
+    uint8_t i, n, k;
+    POKE(0xD02F, 0x47); POKE(0xD02F, 0x53);          /* unlock the VIC-IV registers */
+    POKE(0xD06F, PEEK(0xD06F) | 0x80);               /* 60 Hz (NTSC) timing, so two frames are exactly one 30 Hz game tick */
+    wait_frame(); wait_frame(); wait_frame();        /* let the mode change settle before the registers that it resets are set */
+    POKE(0xD030, PEEK(0xD030) | 0x04);               /* colours 0-15 come from the palette RAM too */
+    /* palette bank 1 (mapped in) is for the characters */
+    set_palette(0x40 | 0x10 | 0x08, palette_rgb, 256);
+    POKE(0xD070, 0x10 | 0x08);                       /* characters use bank 1, sprites bank 2 */
+    POKE(0xD020, BLANK_PIXEL); POKE(0xD021, BLANK_PIXEL);
+    for (i = 0, n = 0; i < 60 && n < 2; ++i) {       /* the chip may apply the 60 Hz switch late and reset its registers when it does (real */
+        video_regs();                                /* hardware does; Xemu does not): set them again until they have stayed set twice running */
+        for (k = 0; k < 30; ++k) wait_frame();
+        if (PEEK(0xD05E) == FIELD_CH_COLS && PEEK(0xD04C) == (uint8_t)FIELD_X && PEEK(0xD048) == (uint8_t)TEXT_Y) ++n; else n = 0;
+    }
 
     build_tiles();
     dma_copy28(0x80, 5UL << 16, 0, 0x4E000UL, GLYPH_OFF);                              /* the sprite pixels: attic file 5 -> chip RAM */

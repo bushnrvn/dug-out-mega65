@@ -13,6 +13,19 @@
 
 extern uint16_t frames_seen;
 
+#ifdef TEST_SCRIPT
+#include "testscript.h"      /* const uint8_t script[][2] = { {buttons, ticks}, ... {0, 0} }, written by the test run */
+static uint8_t sc_i, sc_left;
+static uint8_t script_input(void)
+{
+    uint8_t m;
+    if (!sc_left) { sc_left = script[sc_i][1]; if (!sc_left) sc_left = 255; }
+    m = script[sc_i][0];
+    if (--sc_left == 0 && script[sc_i][1]) ++sc_i;
+    return m;
+}
+#endif
+
 int main(void)
 {
 #ifdef TEST_EXIT
@@ -39,7 +52,9 @@ int main(void)
     for (;;) {
 #endif
 #ifdef TEST_EXIT
-#ifdef TEST_DIG
+#ifdef TEST_SCRIPT
+        in = script_input();
+#elif defined(TEST_DIG)
         in = (n < 60) ? INPUT_MASK_DOWN : (n < 120) ? INPUT_MASK_LEFT : (n < 180) ? INPUT_MASK_DOWN : INPUT_MASK_RIGHT;
 #else
         in = 0;                                      /* Doug stands still; the enemies walk */

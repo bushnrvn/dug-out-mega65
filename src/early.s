@@ -27,10 +27,11 @@ name2:  .byte "over"
 name3:  .byte "win"
 name4:  .byte "sound"
 name5:  .byte "sprites"
-N_FILES = 6
-name_lo:  .byte <name0, <name1, <name2, <name3, <name4, <name5
-name_hi:  .byte >name0, >name1, >name2, >name3, >name4, >name5
-name_len: .byte 5, 5, 4, 3, 5, 7
+name6:  .byte "intro"
+N_FILES = 7
+name_lo:  .byte <name0, <name1, <name2, <name3, <name4, <name5, <name6
+name_hi:  .byte >name0, >name1, >name2, >name3, >name4, >name5, >name6
+name_len: .byte 5, 5, 4, 3, 5, 7, 5
 fidx:   .byte 0
 
 ; the best score file: 'D', 'O', hundreds low, hundreds high, tens digit. It lives in this low segment, which stays visible

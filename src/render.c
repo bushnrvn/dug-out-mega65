@@ -86,7 +86,7 @@ static uint16_t tile_at(uint8_t cc, uint8_t rr)
     return (uint16_t)rr * FIELD_CH_COLS + cc;                   /* the dirt picture */
 }
 
-enum { SC_GAME, SC_TITLE, SC_OVER, SC_WIN };
+enum { SC_GAME, SC_TITLE, SC_OVER, SC_WIN, SC_INTRO };
 static uint8_t scene;                                    /* which screen is up */
 #define scene_title (scene == SC_TITLE)
 #define ART_STRIP_CH0 TITLE_CH0                          /* the over and win pictures: 96 strip characters, then the field's */
@@ -98,7 +98,7 @@ static void rebuild_base_plain(void)
     uint8_t rr, cc, k;
     uint16_t tile;
     if (scene != SC_GAME) {                              /* a picture from the disk (the title shows only the field part) */
-        uint16_t c0 = TITLE_CH0 + ((scene == SC_TITLE) ? 0 : HUD_CHARS);
+        uint16_t c0 = TITLE_CH0 + ((scene == SC_TITLE || scene == SC_INTRO) ? 0 : HUD_CHARS);
         for (rr = 0; rr < FIELD_CH_ROWS; ++rr)
             for (cc = 0; cc < FIELD_CH_COLS; ++cc)
                 for (k = 0; k < SY; ++k) base_scr[rr * SY + k][cc] = c0 + ((uint16_t)rr * FIELD_CH_COLS + cc) * SY + k;
@@ -427,14 +427,16 @@ static void hud_build(void)
     v = scene_title ? hi_h : score_h;
     for (i = 5; i > 0; --i) { buf[i - 1] = '0' + (v % 10); v /= 10; }
     buf[5] = '0' + (scene_title ? hi_t : score_t); buf[6] = '0'; buf[7] = 0;
-    hud_text(10, HUD_TY, scene_title ? "BEST" : "RUNS", 1);
-    hud_text(30, HUD_TY, buf, 0);
-    if (!scene_title) {
+    if (scene != SC_INTRO) {                          /* the intro and attract screens leave the strip empty */
+        hud_text(10, HUD_TY, scene_title ? "BEST" : "RUNS", 1);
+        hud_text(30, HUD_TY, buf, 0);
+    }
+    if (scene == SC_GAME) {
         hud_text(62, HUD_TY, "INN", 1);
         buf[0] = '0' + (level / 10) % 10; buf[1] = '0' + level % 10; buf[2] = 0;
         hud_text(74, HUD_TY, buf, 0);
     }
-    for (n = 0; n < (scene_title ? 0 : lives) && n < 5; ++n)
+    for (n = 0; n < (scene == SC_GAME ? lives : 0) && n < 5; ++n)
         for (j = 0; j < 6; ++j)
             for (i = 0; i < 8; ++i)
                 if (life_px[j * 8 + i]) hud_pic[HUD_TY + j][121 - (n << 3) - 8 + i] = life_px[j * 8 + i];
@@ -537,6 +539,7 @@ static void set_strip_map(uint8_t art)
 static void load_scene_art(uint8_t sc)             /* attic file -> the picture characters in bank 5 */
 {
     if (sc == SC_TITLE) dma_copy28(0x80, 0x10000UL, 0, (uint32_t)TITLE_CH0 << 6, 53248);
+    else if (sc == SC_INTRO) dma_copy28(0x80, 6UL << 16, 0, (uint32_t)TITLE_CH0 << 6, 53248);
     else dma_copy28(0x80, (uint32_t)(sc == SC_OVER ? 2 : 3) << 16, 0, (uint32_t)TITLE_CH0 << 6, 59392);
 }
 
@@ -589,6 +592,81 @@ void render_banner_off(void)
     field_dirty = 1;
 }
 
+/* ------------------------------------------------------- popups, the depth marker -- */
+/* a kill's points float up from where it happened */
+static void draw_popups(void)
+{
+    uint8_t i, n;
+    char buf[8];
+    uint16_t v;
+    for (i = 0; i < MAXP; ++i) {
+        if (!pop_t[i]) continue;
+        v = pop_v[i];
+        n = 0;                                          /* hundreds, then "00" */
+        if (v >= 100) buf[n++] = '0' + v / 100;
+        if (v >= 10) buf[n++] = '0' + (v / 10) % 10;
+        buf[n++] = '0' + v % 10;
+        buf[n++] = '0'; buf[n++] = '0'; buf[n] = 0;
+        draw_text(8 + pop_x[i] + 4 - (n << 1), pop_y[i] + 1 - (pop_t[i] >> 3), buf, 1);
+        --pop_t[i];
+    }
+}
+
+/* the gauges in both margins carry a gold marker that follows Doug down */
+static void draw_depth_marker(void)
+{
+    draw_box(1, py + 3, 5, 3, 63);
+    draw_box(122, py + 3, 5, 3, 63);
+}
+
+/* ---------------------------------------------- the introduction screens -- */
+extern uint8_t icur;                                    /* main.c: which enemy the introduction is about */
+extern uint16_t scene_t;                                /* main.c: ticks on the attract screen */
+
+static const char *const I_TITLE[5] = { "WARNING!", "NEW ARRIVAL!", "INCOMING!", "HEADS UP!", "FINAL INNING!" };
+static const char *const I_NAME[5]  = { "THE VUMPIRES", "THE HEATERS", "THE BASEBALL BATS", "THE GROUNDSKEEPER", "MAD SCOTT" };
+static const char *const I_WHAT[5]  = { "ARE ATTACKING!", "BREATHE FIRE!", "FLY THROUGH DIRT!", "CLOSES YOUR TUNNELS", "IS COMING FOR YOU!" };
+static const char *const A_NAME[5]  = { "VUMPIRE", "HEATER", "BASEBALL BAT", "GROUNDSKEEPER", "MAD SCOTT" };
+static const char *const A_WHAT[5]  = { "RAISES THE FALLEN", "BREATHES FIRE", "FLIES THROUGH DIRT", "RAKES TUNNELS SHUT", "BOSS. SIX STRIKES" };
+
+/* enemy kind 0-4 (Vumpire, Heater, Baseball Bat, Groundskeeper, Mad Scott) walking right, at plane position x, y */
+static void draw_cast(uint8_t kind, int16_t x, int16_t y)
+{
+    uint8_t f = (frame_ct >> 2) & 1;
+    switch (kind) {
+    case 0: draw_soft(S_GRUB[f], x, y, 0, 8); break;
+    case 1: draw_soft(S_EMB[f], x, y, 0, 8); break;
+    case 2: draw_soft(S_BAT[(frame_ct >> 1) & 1], x, y, 0, 8); break;
+    case 3: draw_soft(S_GK[f], x, y, 0, 8); break;
+    default: draw_soft(S_MASCOT[f], x, y - 4, 0, 16);
+    }
+}
+
+/* Every time an inning brings a new kind of enemy, this screen introduces it: its name, then a line of it marches across. */
+static void draw_intro(void)
+{
+    uint8_t t = state_timer, i, p;
+    if (state == ST_ATTRACT) {                          /* idle at the title: the cast, one at a time */
+        i = (uint8_t)(scene_t / 100);
+        if (i > 4) i = 4;
+        draw_text_center(16, "MEET THE OPPOSITION", 1);
+        draw_cast(i, 14, 46);
+        draw_text(34, 44, A_NAME[i], 1);
+        draw_text(34, 52, A_WHAT[i], 0);
+        return;
+    }
+    if (t >= 30 || (t > 6 && !((t >> 1) & 1))) draw_text_center(19, I_TITLE[icur], 1);
+    if (t > 12) draw_text_center(32, I_NAME[icur], 1);
+    if (t > 22) draw_text_center(41, I_WHAT[icur], 1);
+    for (i = 0; i < 6; ++i) {
+        p = (uint8_t)((frame_ct >> 1) - i * 18) & 127;
+        if (p >= 100) continue;
+        if (icur == 4 && (i & 1)) continue;             /* Mad Scott is big: every other place */
+        draw_cast(icur, 8 + p, 65);
+    }
+    if (t > 45 && (frame_ct & 32) == 0) draw_text_center(80, "PRESS START", 1);
+}
+
 /* the title screen: Doug runs along the long tunnel with a Vumpire and a Heater after him. Positions repeat every 128 half-ticks,
  * which matches the 8-bit tick counter, so the chase loops without a jump. */
 static void draw_title(void)
@@ -605,7 +683,8 @@ static void draw_title(void)
 
 void render_frame(void)
 {
-    uint8_t i, want = (state == ST_TITLE) ? SC_TITLE : (state == ST_OVER) ? SC_OVER : (state == ST_WIN) ? SC_WIN : SC_GAME;
+    uint8_t i, want = (state == ST_TITLE) ? SC_TITLE : (state == ST_OVER) ? SC_OVER : (state == ST_WIN) ? SC_WIN :
+                         (state == ST_INTRO || state == ST_ATTRACT) ? SC_INTRO : SC_GAME;
     if (want != scene) {
         uint8_t was_art = (scene == SC_OVER || scene == SC_WIN), is_art = (want == SC_OVER || want == SC_WIN);
         if (want != SC_GAME) load_scene_art(want);
@@ -619,7 +698,9 @@ void render_frame(void)
     if (scene == SC_TITLE) draw_title();
     else if (scene == SC_OVER) draw_over();
     else if (scene == SC_WIN) draw_win();
+    else if (scene == SC_INTRO) draw_intro();
     else {
+        draw_depth_marker();
         draw_rocks();
         for (i = 0; i < MAXC; ++i)
             if (c_on[i]) draw_soft(SPR_TOMB, 8 + c_x[i], c_y[i], 0, 8);
@@ -627,6 +708,7 @@ void render_frame(void)
             if (e_state[i] != ES_NONE) draw_enemy(i);
         draw_ball();
         draw_doug();
+        draw_popups();
     }
     commit_and_show();
 }

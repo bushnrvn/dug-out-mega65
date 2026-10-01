@@ -18,7 +18,9 @@ A full round plays in the Xemu emulator, from the title screen to the game over 
 
 Also: music and sound effects on the SID chips, the best score saved on the disk, and the GameTank's READY, PAUSED and INNING OVER banners and timings.
 
-Not done yet: the enemy introduction scenes. The keyboard and joystick code has not been
+The enemy introduction screens (before innings 1, 2, 3, 5 and 9), the "meet the opposition" screen when the title sits idle, the floating score popups and the depth marker on the gauges are in too.
+
+The keyboard and joystick code has not been
 exercised (the automated checks cannot press keys). Everything has been run only in the emulator, none of it on real
 hardware. See `docs/PORT-NOTES.md`.
 

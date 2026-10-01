@@ -64,7 +64,22 @@ static void save_hiscore_if_new(void)
 #endif
 }
 
-static unsigned int scene_t;
+unsigned int scene_t;                                     /* ticks on the game over, victory and attract screens */
+uint8_t icur;                                             /* which enemy the introduction screen is about (0-4) */
+static unsigned int idle_t;                               /* ticks at the title with no button pressed */
+
+/* Every time an inning brings a new kind of enemy, a short screen introduces it. */
+static uint8_t intro_for_level(uint8_t lv)
+{
+    switch (lv) {
+    case 1: return 0;
+    case 2: return 1;
+    case 3: return 2;
+    case 5: return 3;
+    case INNINGS: return 4;
+    }
+    return 255;
+}
 static char ready_text[9] = "INNING 0";
 static uint8_t paused_shown;                              /* ticks on the game over and victory screens */
 
@@ -87,7 +102,8 @@ static void new_game(void)
 #endif
     score_dirty = 1;
     build_level();
-    state = ST_READY; state_timer = 0;
+    icur = intro_for_level(1);
+    state = ST_INTRO; state_timer = 0;
     snd_stop();
     snd_sfx(SFX_START, 2);
 }
@@ -152,12 +168,22 @@ int main(void)
         old = in;
         ++frame_ct;
         if (state == ST_TITLE) {
+            if (player1_buttons) idle_t = 0; else ++idle_t;
             if (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)) new_game();
+            else if (idle_t > 450) { state = ST_ATTRACT; scene_t = 0; }       /* about 15 s of nothing: show the cast */
+        } else if (state == ST_ATTRACT) {
+            ++scene_t;
+            if (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)) new_game();
+            else if (player1_new_buttons || scene_t > 520) { state = ST_TITLE; idle_t = 0; }
+        } else if (state == ST_INTRO) {
+            if (++state_timer > 230 || (state_timer > 30 && (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)))) {
+                state = ST_READY; state_timer = 0;
+            }
         } else if (state == ST_OVER || state == ST_WIN) {
             if (scene_t < 60000u) ++scene_t;
             state_timer = (scene_t > 255) ? 255 : (unsigned char)scene_t;
             if ((state == ST_OVER && scene_t > 600) || (scene_t > 20 && (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)))) {
-                state = ST_TITLE; snd_song(SONG_TITLE, 1);
+                state = ST_TITLE; idle_t = 0; snd_song(SONG_TITLE, 1);
             }
         } else if (state == ST_READY) {                      /* "INNING n / PLAY BALL!", then the music starts and play begins */
             if (state_timer == 21) {
@@ -193,7 +219,12 @@ int main(void)
                 render_banner_off();
                 ++level;
                 if (level > INNINGS) end_run(ST_WIN);
-                else { build_level(); state = ST_READY; }
+                else {
+                    build_level();
+                    icur = intro_for_level(level);
+                    if (icur != 255) { state = ST_INTRO; snd_sfx(SFX_START, 2); }
+                    else state = ST_READY;
+                }
             }
         }
         render_frame();                              /* waits for the next frame itself, so ticks are 2 frames apart */

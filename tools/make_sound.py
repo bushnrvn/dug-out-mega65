@@ -77,6 +77,9 @@ def parse_midi(path):
         else:
             i += 2 if kind in (0xA0, 0xB0, 0xE0) else 1
     frames = lambda tick: int(round(tick * tempo / ppq / 1e6 * FPS))
+    # every voice is padded with a rest to the end of the song, so they all loop together (voices of different lengths
+    # would drift apart a little more each time round)
+    total = max((frames(e) for ch in range(N_VOICES) for _, e, _ in notes[ch]), default=0)
     streams = []
     for ch in range(N_VOICES):
         ev, pos = bytearray(), 0
@@ -87,6 +90,8 @@ def parse_midi(path):
             dur = max(1, fe - fs)
             ev += struct.pack('<BH', nn, dur)
             pos = fs + dur
+        if ev and pos < total:
+            ev += struct.pack('<BH', 0, total - pos)
         streams.append(bytes(ev) + b'\xff' if ev else b'')
     return streams
 

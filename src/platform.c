@@ -26,6 +26,31 @@ void dma_job_src(uint8_t cmd, uint16_t count, uint16_t src, uint8_t src_bank, ui
     POKE(0xD705, (uint8_t)(uint16_t)dmalist);   /* writing the LSB here runs an enhanced job */
 }
 
+/* chip RAM character <-> normal memory, 64 bytes, using only 16-bit arithmetic (characters start at $40000 + 64 * number
+ * minus the base: here `ch` is the absolute character number, so its address is ch * 64) */
+static void dma_char(uint8_t to_char, uint16_t ch, uint8_t *mem)
+{
+    uint16_t lo = (ch & 0x03FF) << 6;                 /* address within its 64K bank */
+    uint8_t bank = (uint8_t)(ch >> 10);
+    dmalist[0] = 0x0B; dmalist[1] = 0x81; dmalist[2] = 0x00; dmalist[3] = 0x00;
+    dmalist[4] = 0x00;
+    dmalist[5] = 64; dmalist[6] = 0;
+    if (to_char) {
+        dmalist[7] = (uint8_t)(uint16_t)mem; dmalist[8] = (uint8_t)((uint16_t)mem >> 8); dmalist[9] = 0;
+        dmalist[10] = (uint8_t)lo; dmalist[11] = (uint8_t)(lo >> 8); dmalist[12] = bank;
+    } else {
+        dmalist[7] = (uint8_t)lo; dmalist[8] = (uint8_t)(lo >> 8); dmalist[9] = bank;
+        dmalist[10] = (uint8_t)(uint16_t)mem; dmalist[11] = (uint8_t)((uint16_t)mem >> 8); dmalist[12] = 0;
+    }
+    dmalist[13] = 0; dmalist[14] = 0; dmalist[15] = 0;
+    POKE(0xD702, 0x00);
+    POKE(0xD701, (uint16_t)dmalist >> 8);
+    POKE(0xD705, (uint8_t)(uint16_t)dmalist);
+}
+
+void dma_char_in(uint16_t ch, uint8_t *dst) { dma_char(0, ch, dst); }          /* character -> memory */
+void dma_char_out(const uint8_t *src, uint16_t ch) { dma_char(1, ch, (uint8_t *)src); }   /* memory -> character */
+
 void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t dst)
 {
     dma_job_src(cmd, count, src, 0, dst_mb, dst);

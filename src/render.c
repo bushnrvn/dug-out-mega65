@@ -19,26 +19,30 @@
 #define N_FIELD      (FIELD_CH_COLS * FIELD_CH_ROWS)
 #define TUNNEL_TILE0 N_FIELD                 /* tiles 208..223 are the tunnel tiles */
 #define N_TILES      (N_FIELD + 16)
-#define SCREEN_ROWS  (FIELD_CH_ROWS * 3)
-#define HUD_ROWS     6                       /* the score strip above the field: 16 game pixels = 6 character rows */
+#define SY           4                       /* screen rows per game pixel (and character rows per tile row) */
+#define SCREEN_ROWS  (FIELD_CH_ROWS * SY)
+#define HUD_ROWS     (16 * SY / 8)           /* the score strip above the field: 16 game pixels */
 #define HUD_CHARS    (FIELD_CH_COLS * HUD_ROWS)
 #define HUD_CH0      5400u                   /* its characters (they never change places, only pixels) */
 #define SCREEN_CHARS (FIELD_CH_COLS * SCREEN_ROWS)
 #define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
 #define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
-#define DYN_MAX      96                      /* characters that can be unique to one frame */
+#ifndef DYN_MAX
+#define DYN_MAX      80                      /* characters that can be unique to one frame */
+#endif
 #define POOL_A       5000u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)
 #define SCREEN_A     0x12000UL               /* two screen buffers, 2 bytes per character */
 #define SCREEN_B     0x13000UL
 #define COLOUR_OFS   0x2000u                 /* colour RAM offset, in $FF80000 */
-#define XSCL         40                      /* character width = about 980/XSCL pixels: 40 gives 24, i.e. 3x (measured in Xemu) */
+#define XSCL         30                      /* character width = about 980/XSCL pixels: 30 gives 32, i.e. 4 per game pixel (measured in Xemu) */
 
 /* Layout on the 640x400 display (window x 80..720, y 104..504), in physical pixels, all measured in Xemu.
  * The picture is 512x360 (strip and field), so to centre it the text area starts at 144,124. A sprite at register (X, Y) has its left edge at
  * screen x = 2X+31 and its top at screen y = Y. */
-#define FIELD_X      208
-#define TEXT_Y       66                                   /* top of the strip: the 512x360 picture is centred in 400 rows */
+#define FIELD_X      144
+#define TEXT_Y       14                                   /* top of the strip: the 512x360 picture is centred in 400 rows */
+#define PIC_ROWS     ((HUD_ROWS + SCREEN_ROWS) * 8)       /* the whole picture, strip and field, in screen rows */
 #define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)
 
 static uint16_t base_scr[SCREEN_ROWS][FIELD_CH_COLS];   /* the plain map: dirt and tunnels */
@@ -59,26 +63,19 @@ static void tile_px(uint16_t tile, uint8_t *dst)
     else                         memcpy(dst, tunnel_tiles[tile - N_FIELD], 64);
 }
 
-/* character k (0..2) of a tile, copied from the finished characters in chip RAM */
-static void tile_char(uint16_t tile, uint8_t k, uint8_t *dst)
-{
-    uint32_t a = ((uint32_t)(CHAR_BASE + tile * 3 + k)) << 6;
-    dma_job_src(0x00, 64, (uint16_t)a, (uint8_t)(a >> 16), 0, (uint32_t)(uint16_t)dst);
-}
-
 static void build_tiles(void)
 {
     uint16_t t;
     uint8_t k;
     for (t = 0; t < N_TILES; ++t) {
         tile_px(t, tilebuf);
-        for (k = 0; k < 3; ++k) {
+        for (k = 0; k < SY; ++k) {
             uint8_t py, i;
             for (py = 0; py < 8; ++py) {
-                const uint8_t *row = tilebuf + ((k * 8 + py) / 3) * 8;
+                const uint8_t *row = tilebuf + ((k * 8 + py) / SY) * 8;
                 for (i = 0; i < 8; ++i) charbuf[py * 8 + i] = row[i];
             }
-            dma_copy(charbuf, 64, 0, ((uint32_t)(CHAR_BASE + t * 3 + k)) << 6);
+            dma_copy(charbuf, 64, 0, ((uint32_t)(CHAR_BASE + t * SY + k)) << 6);
         }
     }
 }
@@ -108,7 +105,7 @@ static void rebuild_base(void)
     for (rr = 0; rr < FIELD_CH_ROWS; ++rr)
         for (cc = 0; cc < FIELD_CH_COLS; ++cc) {
             tile = tile_at(cc, rr);
-            for (k = 0; k < 3; ++k) base_scr[rr * 3 + k][cc] = CHAR_BASE + tile * 3 + k;
+            for (k = 0; k < SY; ++k) base_scr[rr * SY + k][cc] = CHAR_BASE + tile * SY + k;
         }
 }
 
@@ -121,64 +118,68 @@ static uint8_t *dyn_for(uint8_t cc, uint8_t cr)
         d = dyn_n++;
         dyn_of[cr][cc] = d;
         dyn_cell[d] = ((uint16_t)cr << 4) | cc;
-        tile_char(tile_at(cc, cr / 3), cr % 3, dyn_shadow[d]);   /* start from the plain tile */
+        dma_char_in(base_scr[cr][cc], dyn_shadow[d]);               /* start from the plain character the map shows */
     }
     return dyn_shadow[d];
 }
 
-/* Pixels of one game row at plane position (X.., Y) are written three times (the row is three characters rows tall).
- * The three character buffers are looked up once per 8 pixels. */
-#define ROW_PTR(cc, R) (dyn_for((cc), (uint8_t)((R) >> 3)) + (((R) & 7) << 3))
-#define ROW_SETUP(cc, rb) p0 = ROW_PTR(cc, rb); p1 = ROW_PTR(cc, (rb) + 1); p2 = ROW_PTR(cc, (rb) + 2)
+/* One game pixel is SY = 4 screen rows, and those four rows always sit in the same character (a game row y covers
+ * character row y/2, at row offset (y%2)*4), so one lookup per 8 pixels gives the buffer to write four times. */
+#define ROW_SETUP(cc, yy) pb = dyn_for((cc), (uint8_t)((yy) >> 1)) + (((yy) & 1) << 5)
+#define PUT4(pb, cx, v) do { (pb)[(cx)] = (v); (pb)[(cx) + 8] = (v); (pb)[(cx) + 16] = (v); (pb)[(cx) + 24] = (v); } while (0)
 
 static void draw_box(int16_t X, int16_t Y, uint8_t w, uint8_t h, uint8_t v)
 {
     uint8_t i, j, cc, last, cx;
-    uint8_t *p0, *p1, *p2;
+    uint8_t *pb;
     int16_t xx, yy;
-    uint16_t rb;
     for (j = 0; j < h; ++j) {
         yy = Y + j;
         if (yy < 0 || yy >= 104) continue;
-        rb = (uint16_t)yy * 3;
         last = 255;
         for (i = 0; i < w; ++i) {
             xx = X + i;
             if (xx < 0 || xx >= 128) continue;
             cc = (uint8_t)xx >> 3;
-            if (cc != last) { last = cc; ROW_SETUP(cc, rb); }
+            if (cc != last) { last = cc; ROW_SETUP(cc, yy); }
             cx = (uint8_t)xx & 7;
-            p0[cx] = v; p1[cx] = v; p2[cx] = v;
+            PUT4(pb, cx, v);
         }
     }
 }
 
-/* rows r0..r0+rows-1 of a sprite, with its top-left at plane position (X, Y) */
+extern const uint8_t *br_src;                   /* blit.s */
+extern uint8_t *br_dst;
+extern uint8_t br_n;
+uint8_t br_scan(void);
+void blit_run(void);
+
+/* rows r0..r0+rows-1 of a sprite, with its top-left at plane position (X, Y). Each row is cut into runs that lie in one
+ * character; the character copy is only looked up (or made) once a run has a visible pixel. */
 static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t rows)
 {
     const SoftSprite *s = &soft_sprites[idx];
-    uint8_t w = s->w, h = s->h, sx, sy, n, b, cc, last, cx, v;
-    uint8_t *p0, *p1, *p2;
-    const uint8_t *pal = s->pal;
-    int16_t xx, yy;
-    uint16_t i, rb;
+    uint8_t w = s->w, h = s->h, sy, sx, sxe, take, k, xx, x0 = (uint8_t)X, cr, yr;
+    const uint8_t *src;
+    int16_t yy = Y + r0;
     if ((uint8_t)(r0 + rows) < h) h = r0 + rows;
-    for (sy = r0; sy < h; ++sy) {
-        yy = Y + sy;
-        if (yy < 0 || yy >= 104) continue;
-        rb = (uint16_t)yy * 3;
-        i = (uint16_t)sy * w;
-        last = 255;
-        for (sx = 0; sx < w; ++sx, ++i) {
-            b = s->px[i >> 1];
-            n = (i & 1) ? (b & 15) : (b >> 4);
-            if (!n) continue;
-            xx = X + sx;
-            if (xx < 0 || xx >= 128) continue;
-            cc = (uint8_t)xx >> 3;
-            if (cc != last) { last = cc; ROW_SETUP(cc, rb); }
-            cx = (uint8_t)xx & 7; v = pal[n];
-            p0[cx] = v; p1[cx] = v; p2[cx] = v;
+    if (X >= 128 || X + w <= 0) return;
+    sx = (X < 0) ? (uint8_t)(-X) : 0;                  /* clip to the picture */
+    sxe = (X + w > 128) ? (uint8_t)(128 - X) : w;
+    src = s->px + (uint16_t)r0 * w;
+    for (sy = r0; sy < h; ++sy, ++yy, src += w) {
+        if ((uint16_t)yy >= 104) continue;
+        cr = (uint8_t)yy >> 1;
+        yr = ((uint8_t)yy & 1) << 5;
+        for (k = sx; k < sxe; k += take) {
+            xx = x0 + k;
+            take = 8 - (xx & 7);
+            if (take > sxe - k) take = sxe - k;
+            br_src = src + k; br_n = take;
+            if (br_scan()) {
+                br_dst = dyn_for(xx >> 3, cr) + yr + (xx & 7);
+                blit_run();
+            }
         }
     }
 }
@@ -194,7 +195,7 @@ static void commit_and_show(void)
     dma_copy(base_scr, SCREEN_CHARS * 2, 0, (uint32_t)(uint16_t)scr);
     for (d = 0; d < dyn_n; ++d) {
         cell = dyn_cell[d];
-        dma_copy(dyn_shadow[d], 64, 0, ((uint32_t)(pool + d)) << 6);
+        dma_char_out(dyn_shadow[d], pool + d);
         scr[cell >> 4][cell & 15] = pool + d;
     }
     dma_copy(scr, SCREEN_CHARS * 2, 0, (cur_buf ? SCREEN_B : SCREEN_A) + FIELD_OFS);
@@ -338,7 +339,9 @@ static void draw_doug(void)
 static uint8_t hud_lives, hud_level, hud_drawn;
 static uint16_t hud_score_h; static uint8_t hud_score_t;
 
-static const uint8_t HUD_SRC_ROW[48] = { 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15, 15, 15 };
+#define HUD_TEXT_R0  ((5 * SY) / 8)            /* the text and the life icons are game rows 5-10 */
+#define HUD_TEXT_R1  ((11 * SY + 7) / 8)
+static const uint8_t HUD_SRC_ROW[64] = { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 15 };
 
 static void hud_text(uint8_t x, uint8_t y, const char *str, uint8_t set)
 {
@@ -381,7 +384,7 @@ static void hud_build(void)
             for (i = 0; i < 8; ++i)
                 if (life_px[j * 8 + i]) hud_pic[5 + j][121 - (n << 3) - 8 + i] = life_px[j * 8 + i];
     /* each character row is 8 screen rows = 8/3 game rows */
-    for (cy = 0; cy < HUD_ROWS; ++cy)
+    for (cy = hud_drawn ? HUD_TEXT_R0 : 0; cy < (hud_drawn ? HUD_TEXT_R1 : HUD_ROWS); ++cy)   /* only the rows with text after the first time */
         for (cx = 0; cx < FIELD_CH_COLS; ++cx) {
             for (py = 0; py < 8; ++py)
                 memcpy(charbuf + py * 8, hud_pic[HUD_SRC_ROW[cy * 8 + py]] + cx * 8, 8);
@@ -439,7 +442,7 @@ void render_init(void)
     POKE(0xD020, BLANK_PIXEL); POKE(0xD021, BLANK_PIXEL);
     POKE(0xD031, PEEK(0xD031) | 0x88);               /* H640 + V400: 640x400. (Writing $D031 resets the registers below.) */
     POKE(0xD054, 0x05);                              /* CHR16 (13-bit character numbers) + full-colour for chars > $FF */
-    POKE(0xD05A, XSCL);                              /* characters 3x wide */
+    POKE(0xD05A, XSCL);                              /* characters 4 screen pixels per game pixel across */
     POKE(0xD05E, FIELD_CH_COLS);                     /* characters per row */
     POKE(0xD058, FIELD_CH_COLS * 2); POKE(0xD059, 0);/* bytes per row */
     POKE(0xD07B, HUD_ROWS + SCREEN_ROWS - 1);                   /* rows, minus one */
@@ -453,6 +456,12 @@ void render_init(void)
     POKE(0xD04D, (PEEK(0xD04D) & 0xF0) | (FIELD_X >> 8));
     POKE(0xD04E, (uint8_t)TEXT_Y);
     POKE(0xD04F, (PEEK(0xD04F) & 0xF0) | (TEXT_Y >> 8));
+    POKE(0xD048, (uint8_t)TEXT_Y);                   /* borders just outside the picture (the default ones cut it off at 400 rows) */
+    POKE(0xD049, (PEEK(0xD049) & 0xF0) | (TEXT_Y >> 8));
+    POKE(0xD04A, (uint8_t)(TEXT_Y + PIC_ROWS));
+    POKE(0xD04B, (PEEK(0xD04B) & 0xF0) | ((TEXT_Y + PIC_ROWS) >> 8));
+    POKE(0xD05C, 0x10);                              /* narrow side borders */
+    POKE(0xD05D, PEEK(0xD05D) & 0xC0);
 
     build_tiles();
     dma_fill(0, TOTAL_CHARS * 2, 0xFF, 0x80000UL + COLOUR_OFS);       /* colour RAM: plain characters */

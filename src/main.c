@@ -3,6 +3,7 @@
 #include "platform.h"
 #include "game.h"
 #include "render.h"
+#include "sound.h"
 
 #ifndef TEST_LEVEL
 #define TEST_LEVEL 1
@@ -33,11 +34,21 @@ unsigned char new_best;
 static unsigned int hi_at_start_h;
 static unsigned char hi_at_start_t;
 
+/* the sound data is in attic RAM (loaded at start-up); the player reads it from chip RAM */
+static void snd_start(void)
+{
+    dma_copy28(0x80, 0x40000UL, 0, 0x1A000UL, 16384);
+    snd_init();
+}
+
 /* a new game from the title screen */
 static void end_run(uint8_t to)                         /* game over or victory */
 {
-    new_best = (hi_h > hi_at_start_h) || (hi_h == hi_at_start_h && hi_t > hi_at_start_t);
     state = to; state_timer = 0;
+    if (to == ST_WIN) add_score(10 * lives);                 /* 1,000 per life left */
+    new_best = (hi_h > hi_at_start_h) || (hi_h == hi_at_start_h && hi_t > hi_at_start_t);
+    if (to == ST_OVER) snd_song(SONG_OVER, 0);
+    else snd_song(SONG_TITLE, 1);
 }
 
 static void new_game(void)
@@ -50,6 +61,9 @@ static void new_game(void)
     score_dirty = 1;
     build_level();
     state = ST_PLAY; state_timer = 0;
+    snd_stop();
+    snd_sfx(SFX_START, 2);
+    snd_song(SONG_THEME, 1);
 }
 
 int main(void)
@@ -78,6 +92,12 @@ int main(void)
 #endif
     build_level();
     render_init();
+    snd_start();
+#ifndef TEST_EXIT
+    snd_song(SONG_TITLE, 1);
+#elif defined(TEST_MUSIC)
+    snd_song(TEST_MUSIC, 1);
+#endif
     render_frame(); render_frame();
 
 #ifdef TEST_EXIT
@@ -104,7 +124,7 @@ int main(void)
             if (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A)) new_game();
         } else if (state == ST_OVER || state == ST_WIN) {
             if (state_timer < 255) ++state_timer;
-            if (state_timer >= 20 && (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A))) state = ST_TITLE;
+            if (state_timer >= 20 && (player1_new_buttons & (INPUT_MASK_START | INPUT_MASK_A))) { state = ST_TITLE; snd_song(SONG_TITLE, 1); }
         } else if (state == ST_PAUSE) {
             if (player1_new_buttons & INPUT_MASK_START) state = ST_PLAY;
         } else if (state == ST_PLAY) {
@@ -114,14 +134,14 @@ int main(void)
                 state_timer = 0;
                 if (lives) --lives;
                 if (!lives) end_run(ST_OVER);
-                else { reset_round(); state = ST_PLAY; }
+                else { reset_round(); state = ST_PLAY; snd_song(SONG_THEME, 1); }
             }
         } else if (state == ST_CLEAR) {
             if (++state_timer > 60) {
                 state_timer = 0;
                 ++level;
                 if (level > INNINGS) end_run(ST_WIN);
-                else { build_level(); state = ST_PLAY; }
+                else { build_level(); state = ST_PLAY; snd_song(SONG_THEME, 1); }
             }
         }
         render_frame();                              /* waits for the next frame itself, so ticks are 2 frames apart */

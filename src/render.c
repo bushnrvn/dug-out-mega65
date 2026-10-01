@@ -329,20 +329,29 @@ static void draw_ball(void)
     draw_box(bx + 1, by + 1, 2, 1, COL_FLAME3);                                     /* seam */
 }
 
-/* text on the picture, with the game's font (set 0 = cream, 1 = gold) */
+/* which of the font's 41 glyphs a character is, or 255 for a space or anything else */
+static uint8_t glyph_index(uint8_t ch)
+{
+    if (ch >= 'A' && ch <= 'Z') return ch - 'A';
+    if (ch >= '0' && ch <= '9') return 26 + ch - '0';
+    if (ch == '-') return 36;
+    if (ch == ':') return 37;
+    if (ch == '!') return 38;
+    if (ch == '.') return 39;
+    if (ch == '\'') return 40;
+    return 255;
+}
+
+/* text on the picture, with the game's font (set 0 = cream, 1 = gold); only the lit pixels are drawn */
 static void draw_text(int16_t x, int16_t y, const char *str, uint8_t set)
 {
-    uint8_t ch, idx;
+    uint8_t ch, idx, k, g[24], col = set ? FONT_FG1 : FONT_FG0;
     while ((ch = (uint8_t)*str++) != 0) {
-        if (ch >= 'A' && ch <= 'Z') idx = ch - 'A';
-        else if (ch >= '0' && ch <= '9') idx = 26 + ch - '0';
-        else if (ch == '-') idx = 36;
-        else if (ch == ':') idx = 37;
-        else if (ch == '!') idx = 38;
-        else if (ch == '.') idx = 39;
-        else if (ch == '\'') idx = 40;
-        else { x += 4; continue; }
-        draw_img(font_px[set * 41 + idx], 4, 6, x, y, 0, 6);
+        idx = glyph_index(ch);
+        if (idx != 255) {
+            for (k = 0; k < 24; ++k) g[k] = (font_bits[idx][k >> 3] & (1 << (k & 7))) ? col : 0;
+            draw_img(g, 4, 6, x, y, 0, 6);
+        }
         x += 4;
     }
 }
@@ -369,21 +378,13 @@ static const uint8_t HUD_SRC_ROW[48] = { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 
 
 static void hud_text(uint8_t x, uint8_t y, const char *str, uint8_t set)
 {
-    uint8_t ch, idx, i, j;
-    const uint8_t *g;
+    uint8_t ch, idx, i, j, col = set ? FONT_FG1 : FONT_FG0;
     while ((ch = (uint8_t)*str++) != 0) {
-        if (ch >= 'A' && ch <= 'Z') idx = ch - 'A';
-        else if (ch >= '0' && ch <= '9') idx = 26 + ch - '0';
-        else if (ch == '-') idx = 36;
-        else if (ch == ':') idx = 37;
-        else if (ch == '!') idx = 38;
-        else if (ch == '.') idx = 39;
-        else if (ch == '\'') idx = 40;
-        else { x += 4; continue; }
-        g = font_px[set * 41 + idx];
+        idx = glyph_index(ch);
+        if (idx == 255) { x += 4; continue; }
         for (j = 0; j < 6; ++j)
             for (i = 0; i < 4; ++i)
-                if (g[j * 4 + i]) hud_pic[y + j][x + i] = g[j * 4 + i];
+                if (font_bits[idx][(j * 4 + i) >> 3] & (1 << ((j * 4 + i) & 7))) hud_pic[y + j][x + i] = col;
         x += 4;
     }
 }

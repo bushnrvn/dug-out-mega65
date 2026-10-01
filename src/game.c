@@ -6,25 +6,26 @@
 #include <stdint.h>
 #include "game.h"
 
-/* sound is not ported yet: the logic calls these, they do nothing */
-#define SFXP(id, pri) ((void)0)
-#define SFX(id) ((void)0)
-#define play_song(a, b) ((void)0)
-#define stop_music() ((void)0)
-#define ASSET__audio__clear_mid 0
+/* sound: the names are the GameTank version's, mapped onto the SID player (sound.h) */
+#include "sound.h"
+#define SFXP(id, pri) snd_sfx(id, pri)
+#define SFX(id) snd_sfx(id, 0)
+#define play_song(a, b) snd_song(a, b)
+#define stop_music() snd_stop()
 #define REPEAT_NONE 0
-#define ASSET__audio__die_sfx_ID 0
-#define ASSET__audio__dig_sfx_ID 0
-#define ASSET__audio__fall_sfx_ID 0
-#define ASSET__audio__flame_sfx_ID 0
-#define ASSET__audio__oneup_sfx_ID 0
-#define ASSET__audio__pop_sfx_ID 0
-#define ASSET__audio__pump1_sfx_ID 0
-#define ASSET__audio__pump2_sfx_ID 0
-#define ASSET__audio__ready_sfx_ID 0
-#define ASSET__audio__shoot_sfx_ID 0
-#define ASSET__audio__squash_sfx_ID 0
-#define ASSET__audio__thud_sfx_ID 0
+#define ASSET__audio__clear_mid SONG_CLEAR
+#define ASSET__audio__die_sfx_ID SFX_DIE
+#define ASSET__audio__dig_sfx_ID SFX_DIG
+#define ASSET__audio__fall_sfx_ID SFX_FALL
+#define ASSET__audio__flame_sfx_ID SFX_FLAME
+#define ASSET__audio__oneup_sfx_ID SFX_ONEUP
+#define ASSET__audio__pop_sfx_ID SFX_POP
+#define ASSET__audio__pump1_sfx_ID SFX_PUMP1
+#define ASSET__audio__pump2_sfx_ID SFX_PUMP2
+#define ASSET__audio__ready_sfx_ID SFX_READY
+#define ASSET__audio__shoot_sfx_ID SFX_SHOOT
+#define ASSET__audio__squash_sfx_ID SFX_SQUASH
+#define ASSET__audio__thud_sfx_ID SFX_THUD
 
 /* the drawing layer redraws the field when this is set (a cell was dug, raked shut or smashed) */
 uint8_t field_dirty;
@@ -94,7 +95,7 @@ static unsigned char absdiff(unsigned char a, unsigned char b)
 }
 
 
-static void add_score(unsigned int h)
+void add_score(unsigned int h)
 {
     score_h += h;
     if (score_h > hi_h || (score_h == hi_h && score_t > hi_t)) { hi_h = score_h; hi_t = score_t; }

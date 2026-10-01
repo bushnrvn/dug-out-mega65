@@ -22,10 +22,11 @@ name0:  .byte "tiles"
 name1:  .byte "title"
 name2:  .byte "over"
 name3:  .byte "win"
-N_FILES = 4
-name_lo:  .byte <name0, <name1, <name2, <name3
-name_hi:  .byte >name0, >name1, >name2, >name3
-name_len: .byte 5, 5, 4, 3
+name4:  .byte "sound"
+N_FILES = 5
+name_lo:  .byte <name0, <name1, <name2, <name3, <name4
+name_hi:  .byte >name0, >name1, >name2, >name3, >name4
+name_len: .byte 5, 5, 4, 3, 5
 fidx:   .byte 0
 
 dmalist:                            ; one enhanced DMA job, copy bank 5 -> attic

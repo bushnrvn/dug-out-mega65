@@ -9,7 +9,9 @@
 extern const unsigned char palette_rgb[256][3];
 #define COL_INK 136
 #define COL_RIM 215
-/* HUD font: glyph = set * 41 + index, 4x6 pixels each; the life icon is 8x6 */
-extern const unsigned char font_px[82][24];
+/* the font: 41 glyphs of 4x6 pixels, one bit per pixel (row by row, low bit first), in two colour sets */
+extern const unsigned char font_bits[41][3];
+#define FONT_FG0 55
+#define FONT_FG1 63
 extern const unsigned char life_px[48];
 #endif

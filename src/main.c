@@ -214,7 +214,8 @@ int main(void)
 #endif
 #endif
 #ifdef TEST_FLEE
-    enemies_left = 2; score_h = 10;                  /* two left and 1,000 points: the enemies should run for the top, and each that gets there costs its value */
+    enemies_left = 2; score_h = 10;                  /* two left and 1,000 points: enemy 0 has an open way to the top and should run it, costing its value; the sealed ones stay put */
+    e_x[0] = 6 << 3; e_y[0] = 3 << 3; M(6, 3) = 0; px = 10 << 3; py = 2 << 3;      /* enemy 0 stands just below Doug's shaft, with an open way to the surface; Doug is moved aside */
 #endif
 #ifdef TEST_PEANUT
     peanut_c = 6; peanut_r = 2;                        /* the peanut lies where Doug starts: picking it up should score 500 */

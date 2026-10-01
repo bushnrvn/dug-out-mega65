@@ -35,7 +35,7 @@
 #define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
 #define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
 #ifndef DYN_MAX
-#define DYN_MAX      160                     /* characters that can be unique to one frame */
+#define DYN_MAX      152                     /* characters that can be unique to one frame (the most seen: 134, on the victory screen) */
 #endif
 #define POOL_A       1316u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)

@@ -427,7 +427,7 @@ static void choose_dir(unsigned char i)
         e_dir[i] = open_cell(nc, nr) ? rev : cur;
         return;
     }
-    if (n > 1 && rng() < (e_type[i] ? 110 : 80)) bd = opt[rng() % n];
+    if (n > 1 && rng() < (e_type[i] ? 70 : 50)) bd = opt[rng() % n];      /* mostly they head straight for Doug */
     e_dir[i] = bd;
 }
 
@@ -522,21 +522,62 @@ static void refill_cell(unsigned char c, unsigned char r, unsigned char self)
 }
 
 
+/* an enemy made it off the top of the screen: Doug loses what it would have been worth */
+static void enemy_escape(unsigned char i)
+{
+    if (score_h > e_pts[i]) score_h -= e_pts[i]; else { score_h = 0; score_t = 0; }
+    score_dirty = 1;
+    add_popup(e_x[i], 0, e_pts[i] | 0x8000);
+    SFXP(ASSET__audio__thud_sfx_ID, 2);
+    e_state[i] = ES_NONE;
+    --enemies_left;
+}
+
+/* the way to the top along open tunnels (breadth first search from the enemy's cell to any cell of row 0).
+ * Sets e_dir and returns 1, or returns 0 if there is no way: a sealed cave stays sealed. */
+static unsigned char fl_par[(ROWS + 1) << 4], fl_q[(ROWS + 1) << 4];
+static unsigned char flee_dir(unsigned char i)
+{
+    unsigned char head = 0, tail = 0, cur, c, r, d, nc, nr, n, start, d0 = 0;
+    for (n = 0; n < sizeof fl_par; ++n) fl_par[n] = 0;
+    start = ((e_y[i] >> 3) << 4) | (e_x[i] >> 3);
+    fl_q[tail++] = start; fl_par[start] = 5;
+    while (head != tail) {
+        cur = fl_q[head++]; c = cur & 15; r = cur >> 4;
+        if (r == 0 && cur != start) {                       /* found the top: walk back to the first step */
+            while (cur != start) {
+                d = fl_par[cur] - 1; d0 = d;
+                cur = (unsigned char)(((((signed char)(cur >> 4)) - DY[d]) << 4) | (((signed char)(cur & 15)) - DX[d]));
+            }
+            e_dir[i] = d0;
+            return 1;
+        }
+        for (d = 0; d < 4; ++d) {
+            nc = c + DX[d]; nr = r + DY[d];
+            if (!open_cell((signed char)nc, (signed char)nr)) continue;
+            n = (nr << 4) | nc;
+            if (fl_par[n]) continue;
+            fl_par[n] = d + 1;
+            fl_q[tail++] = n;
+        }
+    }
+    return 0;
+}
+
 static void enemy_update(unsigned char i)
 {
     unsigned char st = e_state[i], x = e_x[i], y = e_y[i], d, c, r, tc, tr;
 
     if (enemies_left <= 2 && e_type[i] <= 2 && !e_flee[i] && (st == ES_WALK || st == ES_GHOST)) {
-        /* only two left: the rest give up the chase and run for the top, as ghosts through the dirt */
+        /* only two left: they give up the chase and run for the top, along the tunnels if there is a way (bats fly straight up) */
         e_flee[i] = 1;
         r = y >> 3;
         e_pts[i] = (r <= 3) ? 2 : (r <= 6) ? 3 : (r <= 9) ? 4 : 5;      /* what a kill here would pay */
-        e_state[i] = st = ES_GHOST; e_acc[i] = 0;
     }
 
     switch (st) {
     case ES_WALK:
-        if (e_type[i] == 0) {
+        if (e_type[i] == 0 && !e_flee[i]) {
             /* standing over a fallen Vumpire starts the ritual */
             for (c = 0; c < MAXC; ++c)
                 if (c_on[c] && e_state[c_slot[c]] == ES_NONE && absdiff(x, c_x[c]) < 6 && absdiff(y, c_y[c]) < 6) {
@@ -589,7 +630,7 @@ static void enemy_update(unsigned char i)
             c = x >> 3; r = y >> 3;
             tc = (px + 4) >> 3; tr = (py + 4) >> 3;
             /* heaters spit fire when lined up with Doug */
-            if (e_type[i] == 1 && r == tr && (tc != c) && rng() < 130) {
+            if (e_type[i] == 1 && !e_flee[i] && r == tr && (tc != c) && rng() < 130) {
                 d = (tc > c) ? DIR_R : DIR_L;
                 if (absdiff(tc, c) <= 5 && line_clear(c, r, d, absdiff(tc, c)) == absdiff(tc, c)) {
                     e_state[i] = ES_FLAME; e_timer[i] = 0; e_face[i] = d;
@@ -597,12 +638,13 @@ static void enemy_update(unsigned char i)
                     return;
                 }
             }
-            choose_dir(i);
+            if (!(e_flee[i] && flee_dir(i))) choose_dir(i);
         }
         d = e_dir[i];
         /* enemies only walk through tunnels (choose_dir guarantees the next cell) */
         e_x[i] = x + DX[d]; e_y[i] = y + DY[d];
         if (d < 2) e_face[i] = d;
+        if (e_flee[i] && e_y[i] == 0) enemy_escape(i);      /* out through the top of Doug's shaft */
         break;
 
     case ES_GHOST:
@@ -613,14 +655,7 @@ static void enemy_update(unsigned char i)
             e_acc[i] -= 16;
             if (y) --y;
             e_y[i] = y;
-            if (y == 0) {                                  /* made it off the top: Doug loses what they were worth */
-                if (score_h > e_pts[i]) score_h -= e_pts[i]; else { score_h = 0; score_t = 0; }
-                score_dirty = 1;
-                add_popup(x, 0, e_pts[i] | 0x8000);
-                SFXP(ASSET__audio__thud_sfx_ID, 2);
-                e_state[i] = ES_NONE;
-                --enemies_left;
-            }
+            if (y == 0) enemy_escape(i);
             break;
         }
         if (e_type[i] == 2) {
@@ -643,7 +678,7 @@ static void enemy_update(unsigned char i)
         if (e_timer[i] > ((e_type[i] == 4) ? 120 : 90)) {
             e_timer[i] = 0;
             if (--e_infl[i] == 0) {
-                e_state[i] = (e_type[i] == 2 || e_flee[i]) ? ES_GHOST : ES_WALK; e_acc[i] = 0;
+                e_state[i] = (e_type[i] == 2) ? ES_GHOST : ES_WALK; e_acc[i] = 0;
             }
         }
         break;

@@ -113,8 +113,11 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
   enemy cave each inning: 500 points when Doug touches it, enemies walk over it. The sprite block grew, so `GLYPH_OFF` is now $1A00.
 - The theme's drum track now comes in after about 3 seconds instead of 30 (`drums_in_sooner` in tools/make_sound.py adds the same hit
   on the same beat grid earlier), because innings are shorter than 30 seconds of music.
-- When two enemies are left (`enemies_left <= 2`), every Vumpire, Heater and bat gives up the chase and becomes a ghost that tunnels
-  straight up through the dirt (`e_flee`), a little slower than Doug. One that reaches the top costs the score a kill would have paid
-  at the depth it started from (`e_pts`, hundreds; the score floors at 0) and counts as gone, so the inning can end. A hit still
-  stuns it, three strikes still put it out. Groundskeepers and Mad Scott never flee. The popup shows the loss with a minus sign
-  (bit 15 of `pop_v`).
+- When two enemies are left (`enemies_left <= 2`), every Vumpire, Heater and bat gives up the chase and runs for the top (`e_flee`).
+  Walkers keep to the tunnels: `flee_dir` is a breadth-first search over open cells to any cell of row 0, and if there is no way (a
+  sealed cave) they carry on as before. They no longer spit fire or start a revival ritual while fleeing. Bats fly straight up through
+  the dirt, as they do everything else. One that reaches the top costs the score a kill would have paid at the depth it started from
+  (`e_pts`, hundreds; the score floors at 0) and counts as gone, so the inning can end. A hit still stuns it, three strikes still put it
+  out. Groundskeepers and Mad Scott never flee. The popup shows the loss with a minus sign (bit 15 of `pop_v`). While more than two
+  are left they head for Doug a little more directly than before (fewer random turns in `choose_dir`).
+  The search needs 448 bytes, so `DYN_MAX` (sprite copy slots) went from 160 to 152; the most ever seen in use is 134.

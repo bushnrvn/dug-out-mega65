@@ -172,6 +172,7 @@ void build_level(void)
         for (tries = 0; tries < 30; ++tries) {
             r = 3 + rng() % 9;
             w = 2 + rng() % 4;
+            if (level >= 2 && (i & 1) && w < 4) w = 4;                  /* a Heater's pocket is at least 4 wide, or you could not get to it */
             c0 = rng() % (COLS - w + 1);
             if (c0 <= 6 && c0 + w > 6 && r < 7) continue;               /* not under Doug's shaft */
             for (c = 0; c < i; ++c)                                     /* keep pockets a row apart if we can */

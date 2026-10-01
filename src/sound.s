@@ -139,12 +139,16 @@ _snd_init:
 irq:    lda     $D019
         sta     $D019               ; acknowledge
         jsr     music_frame
+
+.ifndef WD_HI
+WD_HI = 40
+.endif
 .ifdef TEST_WD
-        inc     wd_lo               ; test builds: a watchdog, so a hang cannot stall a test run (about 50 s)
+        inc     wd_lo               ; test builds: a watchdog, so a hang cannot stall a test run (about 170 s)
         bne     @nowd
         inc     wd_hi
         lda     wd_hi
-        cmp     #12
+        cmp     #WD_HI
         bcc     @nowd
         lda     #$42
         sta     $D6CF

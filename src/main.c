@@ -64,6 +64,7 @@ static void save_hiscore_if_new(void)
 #endif
 }
 
+unsigned char test_done;                                  /* test builds: set when the run finished normally (not by the watchdog) */
 unsigned int scene_t;                                     /* ticks on the game over, victory and attract screens */
 uint8_t icur;                                             /* which enemy the introduction screen is about (0-4) */
 static unsigned int idle_t;                               /* ticks at the title with no button pressed */
@@ -95,7 +96,7 @@ static void end_run(uint8_t to)                         /* game over or victory 
 
 static void new_game(void)
 {
-    level = 1; lives = 3; score_h = 0; score_t = 0; next_life_h = 300;
+    level = 1; lives = TEST_LIVES; score_h = 0; score_t = 0; next_life_h = 300;
     hi_at_start_h = hi_h; hi_at_start_t = hi_t; new_best = 0;
 #ifndef TEST_EXIT
     run_seed = (timer_now() ^ ((uint16_t)frame_ct << 8)) | 1u;      /* new caves every game */
@@ -107,6 +108,67 @@ static void new_game(void)
     snd_stop();
     snd_sfx(SFX_START, 2);
 }
+
+#ifdef TEST_BOT
+/* A simple player for the test builds: presses Start at the menus, and in play digs toward the nearest enemy and throws when
+ * it is lined up. It writes every change of state, inning or lives into a small log that the test run dumps at the end. */
+unsigned int trace[64][3];                                /* tick, state, (inning << 4) | lives */
+unsigned char trace_n;
+static unsigned int bot_tick;
+static unsigned int play_ticks;
+static int absi(int v) { return v < 0 ? -v : v; }
+
+static uint8_t bot_input(void)
+{
+    uint8_t i, best = 255;
+    int bd = 9999, d, dx, dy;
+    uint8_t in = 0;
+    if (state == ST_TITLE || state == ST_OVER || state == ST_WIN) return (frame_ct & 1) ? INPUT_MASK_START : 0;
+    if (state == ST_INTRO) return (state_timer > 31 && (frame_ct & 1)) ? INPUT_MASK_START : 0;
+    if (state != ST_PLAY) { play_ticks = 0; return 0; }
+#ifdef TEST_CHEAT
+    if (++play_ticks > TEST_CHEAT) {                      /* after a while of real fighting, clear the inning the quick way */
+        for (i = 0; i < MAXE; ++i) e_state[i] = ES_NONE;
+        enemies_left = 0;
+        return 0;
+    }
+#endif
+    for (i = 0; i < MAXE; ++i) {
+        if (e_state[i] == ES_NONE) continue;
+        d = absi((int)e_x[i] - px) + absi((int)e_y[i] - py);
+        if (d < bd) { bd = d; best = i; }
+    }
+    if (best == 255) return 0;
+    dx = (int)e_x[best] - px; dy = (int)e_y[best] - py;
+    if (absi(dy) < 5 && absi(dx) < 72) {                  /* in the same row: face it and throw */
+        uint8_t want = (dx > 0) ? DIR_R : DIR_L;
+        if (pdir == want && !ball_on && !throw_cd) return INPUT_MASK_A;
+        return (dx > 0) ? INPUT_MASK_RIGHT : INPUT_MASK_LEFT;
+    }
+    if (absi(dx) < 5 && absi(dy) < 72) {                  /* in the same column */
+        uint8_t want = (dy > 0) ? DIR_D : DIR_U;
+        if (pdir == want && !ball_on && !throw_cd) return INPUT_MASK_A;
+        return (dy > 0) ? INPUT_MASK_DOWN : INPUT_MASK_UP;
+    }
+    /* otherwise dig toward it, along whichever way is further, changing the choice now and then */
+    if ((absi(dx) > absi(dy)) ^ ((bot_tick >> 6) & 1)) in = (dx > 0) ? INPUT_MASK_RIGHT : INPUT_MASK_LEFT;
+    else in = (dy > 0) ? INPUT_MASK_DOWN : INPUT_MASK_UP;
+    return in;
+}
+
+static void bot_log(void)
+{
+    static unsigned char ls = 255, ll, lv;
+    ++bot_tick;
+    if (state != ls || level != ll || lives != lv) {
+        ls = state; ll = level; lv = lives;
+        if (trace_n < 64) {
+            trace[trace_n][0] = bot_tick; trace[trace_n][1] = state; trace[trace_n][2] = ((unsigned int)level << 4) | lives;
+            ++trace_n;
+        }
+    }
+}
+#endif
 
 int main(void)
 {
@@ -130,7 +192,7 @@ int main(void)
     run_seed = ((uint16_t)PEEK(0xDC05) << 8 | PEEK(0xDC04)) | 1u;     /* a timer that has been running since power-on */
 #endif
 #ifdef TEST_START
-    score_h = 107; score_t = 0; hi_h = 107; hi_t = 0; new_best = 1; state = TEST_START;      /* a screenshot of the game over or victory screen */
+    score_h = 107; score_t = 0; hi_h = 107; hi_t = 0; new_best = 1; state = TEST_START; icur = intro_for_level(level);      /* a screenshot of the game over or victory screen */
 #endif
     build_level();
     render_init();
@@ -153,7 +215,9 @@ int main(void)
     for (;;) {
 #endif
 #ifdef TEST_EXIT
-#ifdef TEST_SCRIPT
+#ifdef TEST_BOT
+        in = bot_input();
+#elif defined(TEST_SCRIPT)
         in = script_input();
 #elif defined(TEST_DIG)
         in = (n < 60) ? INPUT_MASK_DOWN : (n < 120) ? INPUT_MASK_LEFT : (n < 180) ? INPUT_MASK_DOWN : INPUT_MASK_RIGHT;
@@ -227,6 +291,10 @@ int main(void)
                 }
             }
         }
+#ifdef TEST_BOT
+        bot_log();
+        if ((state == ST_OVER || state == ST_WIN) && scene_t > 120) n = TEST_TICKS;      /* the run is over: stop */
+#endif
         render_frame();                              /* waits for the next frame itself, so ticks are 2 frames apart */
     }
 #ifdef TEST_EXIT

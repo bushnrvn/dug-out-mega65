@@ -42,12 +42,16 @@
 #define SCREEN_A     0x12100UL               /* two screen buffers, 2 bytes per character */
 #define SCREEN_B     0x12900UL
 #define COLOUR_OFS   0x2000u                 /* colour RAM offset, in $FF80000 */
-#define XSCL         30                      /* character width = about 980/XSCL pixels: 30 gives 32, i.e. 4 per game pixel (measured in Xemu) */
+#ifndef XSCL
+#define XSCL         26                      /* character width = about 980/XSCL pixels (measured in Xemu: 30 gives 4 per game pixel, 26 gives 4.6).
+                                                The MEGA65's 720x480 picture is shown as 4:3, so its pixels are about 11% narrower than square; 4.6 (15% wider)
+                                                makes the picture square on a 4:3 display and on a 5:4 monitor, which squeezes it a little more. */
+#endif
 
 /* Layout on the 640x400 display (window x 80..720, y 104..504), in physical pixels, all measured in Xemu.
- * The picture is 512x360 (strip and field), so to centre it the text area starts at 144,124. A sprite at register (X, Y) has its left edge at
+ * The picture is 512x360 (strip and field), so to centre it the text area starts at 144,124 (with the wider characters, 104,124). A sprite at register (X, Y) has its left edge at
  * screen x = 2X+31 and its top at screen y = Y. */
-#define FIELD_X      144
+#define FIELD_X      104                                  /* (144 for 4 pixels per game pixel; less as the picture widens, to keep it centred) */
 #define TEXT_Y       4                                    /* top of the strip: the 512x360 picture is centred in 400 rows */
 #define PIC_ROWS     ((HUD_ROWS + SCREEN_ROWS) * 8)       /* the whole picture, strip and field, in screen rows */
 #define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)

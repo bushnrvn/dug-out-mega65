@@ -97,3 +97,9 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
   run; fine on the next). The loader only checks that each file loaded, not that the bytes are right. The SD card is the safe way.
 - Tools for finding such things are in `tools/hwdiag/` and `src/hwdiag.c` (`make diag`): they show register values and memory on
   screen so a photo from the real machine can be compared with Xemu.
+- **Picture shape.** The MEGA65's 720x480 output is shown as 4:3, so its pixels are about 11% narrower than square, and a 5:4 monitor
+  squeezes it a little more. The characters are drawn 15% wider (`XSCL` 26, 4.6 screen pixels per game pixel, `FIELD_X` 104 to keep the
+  picture centred) so that the picture is square on a 4:3 display and on a 5:4 monitor. Xemu shows the raw 3:2 frame, so in Xemu's window
+  the picture looks wider than it is on a real display.
+- **Scanlines and other user settings.** The game sets only the layout registers listed above and never writes a scanline or video-filter
+  setting. It uses the 400-line mode, where every line carries picture data.

@@ -89,6 +89,6 @@ static const unsigned char tunnel_px[16][64] = {
 #define SP_PORTRAIT_H 24
 #define SP_LIFE_X 111
 #define SP_LIFE_Y 50
-#define SP_PEANUT_X 64
-#define SP_PEANUT_Y 82
+#define SP_CANDY_X 64
+#define SP_CANDY_Y 82
 #endif

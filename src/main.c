@@ -217,8 +217,8 @@ int main(void)
     enemies_left = 2; score_h = 10;                  /* two left and 1,000 points: enemy 0 has an open way to the top and should run it, costing its value; the sealed ones stay put */
     e_x[0] = 6 << 3; e_y[0] = 3 << 3; M(6, 3) = 0; px = 10 << 3; py = 2 << 3;      /* enemy 0 stands just below Doug's shaft, with an open way to the surface; Doug is moved aside */
 #endif
-#ifdef TEST_PEANUT
-    peanut_c = 6; peanut_r = 2;                        /* the peanut lies where Doug starts: picking it up should score 500 */
+#ifdef TEST_CANDY
+    candy_c = 6; candy_r = 2;                        /* the candy lies where Doug starts: picking it up should score 500 */
 #endif
 #ifdef TEST_HEATER
     {   /* inning 2: Doug in a cleared row, TEST_DIST pixels from the Heater (enemy 1), facing it, with nothing else about */

@@ -30,7 +30,7 @@
 #define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
 #define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
 #ifndef DYN_MAX
-#define DYN_MAX      80                      /* characters that can be unique to one frame */
+#define DYN_MAX      128                     /* characters that can be unique to one frame */
 #endif
 #define POOL_A       1280u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)
@@ -48,7 +48,6 @@
 #define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)
 
 static uint16_t base_scr[SCREEN_ROWS][FIELD_CH_COLS];   /* the plain map: dirt and tunnels */
-static uint16_t scr[SCREEN_ROWS][FIELD_CH_COLS];        /* this frame's map, with the copies in it */
 static int8_t dyn_of[SCREEN_ROWS][FIELD_CH_COLS];       /* which copy a cell has this frame, or -1 */
 static uint16_t dyn_cell[DYN_MAX];                      /* the cell of each copy: row * 16 + column */
 static uint8_t dyn_n;
@@ -82,16 +81,20 @@ static uint16_t tile_at(uint8_t cc, uint8_t rr)
     return (uint16_t)rr * FIELD_CH_COLS + cc;                   /* the dirt picture */
 }
 
-static uint8_t scene_title;                              /* 1 while the title screen is up */
+enum { SC_GAME, SC_TITLE, SC_OVER, SC_WIN };
+static uint8_t scene;                                    /* which screen is up */
+#define scene_title (scene == SC_TITLE)
+#define ART_STRIP_CH0 TITLE_CH0                          /* the over and win pictures: 96 strip characters, then the field's */
 
 static void rebuild_base(void)
 {
     uint8_t rr, cc, k;
     uint16_t tile;
-    if (scene_title) {
+    if (scene != SC_GAME) {                              /* a picture from the disk (the title shows only the field part) */
+        uint16_t c0 = TITLE_CH0 + ((scene == SC_TITLE) ? 0 : HUD_CHARS);
         for (rr = 0; rr < FIELD_CH_ROWS; ++rr)
             for (cc = 0; cc < FIELD_CH_COLS; ++cc)
-                for (k = 0; k < SY; ++k) base_scr[rr * SY + k][cc] = TITLE_CH0 + ((uint16_t)rr * FIELD_CH_COLS + cc) * SY + k;
+                for (k = 0; k < SY; ++k) base_scr[rr * SY + k][cc] = c0 + ((uint16_t)rr * FIELD_CH_COLS + cc) * SY + k;
         return;
     }
     for (rr = 0; rr < FIELD_CH_ROWS; ++rr)
@@ -185,17 +188,21 @@ static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t row
 #define TICK_MIN  (FRAME_T + FRAME_T / 2)    /* a game tick is two frames (30 a second, as on the GameTank): flip on the first frame boundary after 1.5 */
 static uint16_t last_flip;
 
+extern uint32_t pk_base;                         /* blit.s: store one character number into the screen map in chip RAM */
+extern uint16_t pk_off, pk_val;
+void poke_cell(void);
+
 static void commit_and_show(void)
 {
     uint8_t d;
-    uint16_t cell, pool = cur_buf ? POOL_B : POOL_A;
-    dma_copy(base_scr, SCREEN_CHARS * 2, 0, (uint32_t)(uint16_t)scr);
-    for (d = 0; d < dyn_n; ++d) {
-        cell = dyn_cell[d];
+    uint16_t pool = cur_buf ? POOL_B : POOL_A;
+    pk_base = (cur_buf ? SCREEN_B : SCREEN_A) + FIELD_OFS;
+    dma_copy(base_scr, SCREEN_CHARS * 2, 0, pk_base);       /* the plain map ... */
+    for (d = 0; d < dyn_n; ++d) {                           /* ... with each cell that has a copy pointing at it */
         dma_char_out(dyn_shadow[d], pool + d);
-        scr[cell >> 4][cell & 15] = pool + d;
+        pk_off = dyn_cell[d] << 1; pk_val = pool + d;
+        poke_cell();
     }
-    dma_copy(scr, SCREEN_CHARS * 2, 0, (cur_buf ? SCREEN_B : SCREEN_A) + FIELD_OFS);
     wait_frame();
     while ((uint16_t)(last_flip - timer_now()) < TICK_MIN) wait_frame();    /* normally every second frame, later if the drawing took longer */
     POKE(0xD061, cur_buf ? (uint8_t)(SCREEN_B >> 8) : (uint8_t)(SCREEN_A >> 8));        /* show it */
@@ -222,6 +229,7 @@ static const signed char ORB_Y[8] = { -9, -6, 0, 6, 9, 6, 0, -6 };
 #define WINDUP 10
 #define COL_WHITE 7          /* GameTank palette indices the drawing uses for its few plain boxes */
 #define COL_FLAME3 91
+#define COL_HAT 31
 #define COL_HOSE_D 44
 
 static void draw_rocks(void)
@@ -417,6 +425,92 @@ static void hud_update(void)
         hud_build();
 }
 
+static void fmt7(char *buf, uint16_t v, uint8_t t)       /* a score: five digits of hundreds, the tens digit, and a zero */
+{
+    uint8_t i;
+    for (i = 5; i > 0; --i) { buf[i - 1] = '0' + (v % 10); v /= 10; }
+    buf[5] = '0' + t; buf[6] = '0'; buf[7] = 0;
+}
+
+static void draw_text_center(int16_t y, const char *str, uint8_t set)
+{
+    uint8_t n = 0;
+    while (str[n]) ++n;
+    draw_text(64 - (n << 1), y, str, set);
+}
+
+/* The over and win pictures have a plaque along the bottom for the score; the numbers are drawn live. For the first
+ * moments the score shows, then it alternates with PRESS START. (Text y is the picture's row minus the 12 rows of the strip.) */
+static void draw_score_plaque(void)
+{
+    char buf[8];
+    if ((frame_ct & 64) == 0 || state_timer < 40) {
+        fmt7(buf, score_h, score_t);
+        draw_text(10, 96, "RUNS", 1); draw_text(30, 96, buf, 0);
+        fmt7(buf, hi_h, hi_t);
+        draw_text(72, 96, "BEST", 1); draw_text(92, 96, buf, 0);
+    } else {
+        draw_text_center(96, "PRESS START", 1);
+    }
+}
+
+static void draw_over(void)
+{
+    uint8_t i, f = (frame_ct >> 1) & 1;
+    int16_t x, y;
+    for (i = 0; i < 3; ++i) {                      /* baseball bats circle the moon */
+        x = (int16_t)((((uint16_t)frame_ct * (2 + i)) >> 1) + i * 57) % 140;
+        y = 32 + i * 5 + ((frame_ct >> 3) & 3) * (i + 1) / 2 - 12;
+        if (x < 116) draw_soft(S_BAT[(f + i) & 1], x, y, 0, 8);
+    }
+    if (new_best && (frame_ct & 16)) {
+        draw_box(30, 51, 68, 9, COL_INK);
+        draw_text_center(53, "NEW BEST SCORE!", 1);
+    }
+    draw_score_plaque();
+}
+
+static void draw_win(void)
+{
+    static const uint8_t bx[3] = { 22, 106, 64 }, by[3] = { 50, 46, 50 };
+    static const uint8_t conf[5] = { 63, COL_FLAME3, 215, COL_WHITE, COL_HAT };
+    uint8_t i, k, f, sz, t = frame_ct;
+    int16_t x, y;
+    for (i = 0; i < 3; ++i) {                       /* fireworks */
+        k = (uint8_t)((t >> 1) + i * 21) & 63;
+        if (k < 40) {
+            f = k / 10;
+            sz = soft_sprites[S_BURST[f]].w;
+            draw_soft(S_BURST[f], bx[i] - (sz >> 1), by[i] - (sz >> 1) - 12, 0, sz);
+        }
+    }
+    for (i = 0; i < 16; ++i) {                      /* confetti */
+        x = 3 + (int16_t)((i * 53 + (t >> 3) * (1 + (i & 1))) % 120);
+        y = 8 + (int16_t)((((uint16_t)t * (1 + (i & 3)) >> 1) + i * 11) % 104);
+        if (y >= 12) draw_box(x, y - 12, 2, 3, conf[i % 5]);
+    }
+    if (new_best && (frame_ct & 16)) draw_text_center(34, "NEW BEST SCORE!", 0);
+    draw_score_plaque();
+}
+
+/* the strip at the top of the screen shows either the score characters or the top 12 rows of the over and win pictures */
+static void set_strip_map(uint8_t art)
+{
+    uint8_t i, k;
+    uint16_t c0 = art ? ART_STRIP_CH0 : HUD_CH0;
+    for (i = 0; i < HUD_ROWS; ++i) {
+        for (k = 0; k < FIELD_CH_COLS; ++k) ((uint16_t *)rowbuf)[k] = c0 + i * FIELD_CH_COLS + k;
+        dma_copy(rowbuf, FIELD_CH_COLS * 2, 0, SCREEN_A + (uint16_t)i * FIELD_CH_COLS * 2);
+        dma_copy(rowbuf, FIELD_CH_COLS * 2, 0, SCREEN_B + (uint16_t)i * FIELD_CH_COLS * 2);
+    }
+}
+
+static void load_scene_art(uint8_t sc)             /* attic file -> the picture characters in bank 5 */
+{
+    if (sc == SC_TITLE) dma_copy28(0x80, 0x10000UL, 0, (uint32_t)TITLE_CH0 << 6, 53248);
+    else dma_copy28(0x80, (uint32_t)(sc == SC_OVER ? 2 : 3) << 16, 0, (uint32_t)TITLE_CH0 << 6, 59392);
+}
+
 /* the title screen: Doug runs along the long tunnel with a Vumpire and a Heater after him. Positions repeat every 128 half-ticks,
  * which matches the 8-bit tick counter, so the chase loops without a jump. */
 static void draw_title(void)
@@ -433,13 +527,20 @@ static void draw_title(void)
 
 void render_frame(void)
 {
-    uint8_t i, want_title = (state == ST_TITLE);
-    if (want_title != scene_title) { scene_title = want_title; field_dirty = 1; hud_drawn = 0; }
+    uint8_t i, want = (state == ST_TITLE) ? SC_TITLE : (state == ST_OVER) ? SC_OVER : (state == ST_WIN) ? SC_WIN : SC_GAME;
+    if (want != scene) {
+        uint8_t was_art = (scene == SC_OVER || scene == SC_WIN), is_art = (want == SC_OVER || want == SC_WIN);
+        if (want != SC_GAME) load_scene_art(want);
+        if (is_art != was_art) set_strip_map(is_art);
+        scene = want; field_dirty = 1; hud_drawn = 0;
+    }
     if (field_dirty) { rebuild_base(); field_dirty = 0; }
     hud_update();
     dyn_n = 0;
     memset(dyn_of, 0xFF, sizeof dyn_of);
-    if (scene_title) draw_title();
+    if (scene == SC_TITLE) draw_title();
+    else if (scene == SC_OVER) draw_over();
+    else if (scene == SC_WIN) draw_win();
     else {
         draw_rocks();
         for (i = 0; i < MAXC; ++i)
@@ -500,7 +601,6 @@ void render_init(void)
     POKE(0xD05D, PEEK(0xD05D) & 0xC0);
 
     build_tiles();
-    dma_copy28(0x80, 0x10000UL, 0, (uint32_t)TITLE_CH0 << 6, 53248);      /* the title picture: attic file 1 -> characters */
     dma_fill(0, TOTAL_CHARS * 2, 0xFF, 0x80000UL + COLOUR_OFS);       /* colour RAM: plain characters */
 
     POKE(0xD015, 0x00);                              /* no hardware sprites: Doug is drawn like the others */

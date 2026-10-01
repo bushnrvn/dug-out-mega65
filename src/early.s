@@ -20,10 +20,12 @@ SETBNK  = $FF6B
 ; text to PETSCII).
 name0:  .byte "tiles"
 name1:  .byte "title"
-N_FILES = 2
-name_lo:  .byte <name0, <name1
-name_hi:  .byte >name0, >name1
-name_len: .byte 5, 5
+name2:  .byte "over"
+name3:  .byte "win"
+N_FILES = 4
+name_lo:  .byte <name0, <name1, <name2, <name3
+name_hi:  .byte >name0, >name1, >name2, >name3
+name_len: .byte 5, 5, 4, 3
 fidx:   .byte 0
 
 dmalist:                            ; one enhanced DMA job, copy bank 5 -> attic

@@ -29,6 +29,7 @@ extern unsigned char paid[(ROWS + 1) * 16];
 extern unsigned char state, state_timer, frame_ct, level, lives;
 extern unsigned int score_h, hi_h, next_life_h;
 extern unsigned char score_t, hi_t, score_dirty;
+extern unsigned char new_best;      /* the run that just ended set a new best score (defined in main.c) */
 extern unsigned int lfsr, run_seed;
 extern unsigned char px, py, pdir, panim, pmoving;
 extern unsigned char ball_on, ball_x, ball_y, ball_dir, ball_dist, throw_cd, ball_dirt;

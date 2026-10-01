@@ -8,17 +8,17 @@ your fastball, and drop home plates on the rest. Nine innings, then a boss.
 
 ## Status
 
-Milestone 3 works in the Xemu emulator:
+A full round plays in the Xemu emulator, from the title screen to the game over or victory screen:
 - the real level generator runs: random pockets, shafts and boulders for each inning, seeded per game;
 - the game logic is the GameTank version's own C (map, Doug's movement and digging, enemy behaviour, strikes, rocks,
   scoring), compiled unchanged into `src/game.c`; only drawing, input, timing and sound are MEGA65 code;
-- the dirt, tunnels, boulders, enemies and effects are all drawn;
-- Doug is a hardware sprite, everything else is drawn by the CPU into the field's characters ("software sprites"), which
-  avoids the VIC-IV's limit of eight sprites.
+- everything is drawn by the CPU into the field's characters ("software sprites"), which avoids the VIC-IV's limit of
+  eight sprites; a game pixel is 4x4 screen pixels, at 60 Hz, 30 game ticks a second like the GameTank version;
+- the score and lives strip, the title screen, the game over and victory screens, with the GameTank's own artwork.
 
-Not done yet: the score and lives display, the title, intro and end screens, sound and music, the high score.
-The keyboard and joystick code has not been exercised (the automated checks cannot press keys). Everything has been run
-only in the emulator. See `docs/PORT-NOTES.md`.
+Not done yet: the intro scenes, sound and music, the saved high score. The keyboard and joystick code has not been
+exercised (the automated checks cannot press keys). Everything has been run only in the emulator, none of it on real
+hardware. See `docs/PORT-NOTES.md`.
 
 `tools/convert.py` turns the art in `assets/` into `src/data.c`, `src/sprites.c` and the disk's data files in `build/assets/` (run by `make`); `tools/mkd81.py` writes the disk image.
 

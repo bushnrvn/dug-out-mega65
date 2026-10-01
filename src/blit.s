@@ -6,9 +6,16 @@
 
         .export _br_src, _br_dst, _br_n
         .export _br_scan, _blit_run
+        .export _pk_base, _pk_off, _pk_val, _poke_cell
         .importzp ptr1, ptr2, ptr3, ptr4, sreg
 
+        .zeropage
+pk_ptr: .res 4                      ; a 32-bit pointer for poke_cell
+
         .bss
+_pk_base: .res 4                    ; chip address of the screen map's first cell
+_pk_off:  .res 2                    ; byte offset of the cell
+_pk_val:  .res 2                    ; the character number to store
 _br_src: .res 2
 _br_dst: .res 2
 _br_n:   .res 1
@@ -70,4 +77,28 @@ _blit_run:
 @skip:  iny
         cpy _br_n
         bne @l
+        rts
+
+; Store the 16-bit character number pk_val at pk_base + pk_off in chip RAM, using the 45GS02's 32-bit indirect store.
+_poke_cell:
+        clc
+        lda _pk_base
+        adc _pk_off
+        sta pk_ptr
+        lda _pk_base+1
+        adc _pk_off+1
+        sta pk_ptr+1
+        lda _pk_base+2
+        adc #0
+        sta pk_ptr+2
+        lda _pk_base+3
+        adc #0
+        sta pk_ptr+3
+        ldz #0
+        lda _pk_val
+        sta [pk_ptr],z
+        inz
+        lda _pk_val+1
+        sta [pk_ptr],z
+        ldz #0
         rts

@@ -171,6 +171,9 @@ static void draw_soft(uint8_t idx, int16_t X, int16_t Y, uint8_t r0, uint8_t row
         }
 }
 
+#define TICK_MIN 29500u                      /* 1.5 frames in timer ticks (a PAL frame is about 19650): the next frame boundary after that */
+static uint16_t last_flip;
+
 static void commit_and_show(void)
 {
     uint8_t d;
@@ -183,9 +186,11 @@ static void commit_and_show(void)
     }
     dma_copy(scr, SCREEN_CHARS * 2, 0, (cur_buf ? SCREEN_B : SCREEN_A) + FIELD_OFS);
     wait_frame();
+    while ((uint16_t)(last_flip - timer_now()) < TICK_MIN) wait_frame();    /* a tick lasts two frames, or longer if the drawing did */
     POKE(0xD061, cur_buf ? (uint8_t)(SCREEN_B >> 8) : (uint8_t)(SCREEN_A >> 8));        /* show it */
     POKE(0xD062, cur_buf ? (uint8_t)(SCREEN_B >> 16) : (uint8_t)(SCREEN_A >> 16));
     cur_buf ^= 1;
+    last_flip = timer_now();
 }
 
 /* ----------------------------------------------------------- the game -- */
@@ -414,8 +419,6 @@ static void set_palette(uint8_t bank_sel, const uint8_t (*rgb)[3], uint16_t n)
     }
 }
 
-static uint16_t hud_map[HUD_CHARS];
-
 void render_init(void)
 {
     uint8_t i;
@@ -457,9 +460,12 @@ void render_init(void)
     POKE(0xD076, 0x01);                              /* native vertical resolution for sprite 0 */
     POKE(0xD015, 0x01);                              /* sprite 0 on */
 
-    for (i = 0; i < HUD_CHARS; ++i) { hud_map[i] = HUD_CH0 + i; }
-    dma_copy(hud_map, HUD_CHARS * 2, 0, SCREEN_A);
-    dma_copy(hud_map, HUD_CHARS * 2, 0, SCREEN_B);
+    for (i = 0; i < HUD_ROWS; ++i) {                 /* the strip's character numbers, one row at a time, into both buffers */
+        uint8_t k;
+        for (k = 0; k < FIELD_CH_COLS; ++k) ((uint16_t *)rowbuf)[k] = HUD_CH0 + i * FIELD_CH_COLS + k;
+        dma_copy(rowbuf, FIELD_CH_COLS * 2, 0, SCREEN_A + (uint16_t)i * FIELD_CH_COLS * 2);
+        dma_copy(rowbuf, FIELD_CH_COLS * 2, 0, SCREEN_B + (uint16_t)i * FIELD_CH_COLS * 2);
+    }
     field_dirty = 1;
     rebuild_base();
     field_dirty = 0;

@@ -28,6 +28,7 @@ int main(void)
 #else
     run_seed = ((uint16_t)PEEK(0xDC05) << 8 | PEEK(0xDC04)) | 1u;     /* a timer that has been running since power-on */
 #endif
+    timer_start();
     build_level();
     render_init();
     render_frame(); render_frame();
@@ -37,7 +38,6 @@ int main(void)
 #else
     for (;;) {
 #endif
-        wait_frame();                                /* about 25 ticks a second on PAL */
 #ifdef TEST_EXIT
 #ifdef TEST_DIG
         in = (n < 60) ? INPUT_MASK_DOWN : (n < 120) ? INPUT_MASK_LEFT : (n < 180) ? INPUT_MASK_DOWN : INPUT_MASK_RIGHT;

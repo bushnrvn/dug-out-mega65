@@ -13,5 +13,7 @@ void dma_job(uint8_t cmd, uint16_t count, uint16_t src, uint8_t dst_mb, uint32_t
 #define dma_fill(val, count, dst_mb, dst) dma_job(0x03, (count), (val), (dst_mb), (dst))
 
 uint8_t read_input(void);    /* INPUT_MASK_* bits from the keyboard and joystick port 2 */
+uint16_t timer_now(void);    /* free-running, counts down */
+void timer_start(void);
 void wait_frame(void);       /* returns at the start of the next video frame */
 #endif

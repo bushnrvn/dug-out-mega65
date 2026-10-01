@@ -31,8 +31,8 @@ uint16_t frames_seen;
 void wait_frame(void)
 {
     ++frames_seen;
-    while (PEEK(0xD012) != 0xFF) { }
-    while (PEEK(0xD012) == 0xFF) { }
+    while (!(PEEK(0xD011) & 0x80)) { }                /* raster is in the lower half of the frame (line 256 or more) ... */
+    while (PEEK(0xD011) & 0x80) { }                   /* ... and the next frame starts when it wraps to the top */
 }
 
 static uint8_t key_down(uint8_t col, uint8_t row)
@@ -60,4 +60,15 @@ uint8_t read_input(void)
     if (j & 0x08) r |= INPUT_MASK_RIGHT;
     if (j & 0x10) r |= INPUT_MASK_A;
     return r;
+}
+
+uint16_t timer_now(void)       /* CIA 1 timer A: counts down about a million times a second */
+{
+    return PEEK(0xDC04) | ((uint16_t)PEEK(0xDC05) << 8);
+}
+
+void timer_start(void)
+{
+    POKE(0xDC04, 0xFF); POKE(0xDC05, 0xFF);
+    POKE(0xDC0E, (PEEK(0xDC0E) & 0xC0) | 0x11);        /* continuous, force load, start */
 }

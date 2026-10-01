@@ -735,6 +735,7 @@ static void video_regs(void)
     POKE(0xD020, BLANK_PIXEL); POKE(0xD021, BLANK_PIXEL);
     POKE(0xD031, PEEK(0xD031) | 0x88);               /* H640 + V400: 640x400. (Writing $D031 resets the registers below.) */
     POKE(0xD054, 0x05);                              /* CHR16 (13-bit character numbers) + full-colour for chars > $FF */
+    POKE(0xD05B, 0x00);                              /* one raster per character line (400-line mode). The chip sets this itself when it recomputes the layout, which HOTREG off prevents; the 200-line value (1) draws everything twice as tall */
     POKE(0xD05A, XSCL);                              /* characters 4 screen pixels per game pixel across */
     POKE(0xD05E, FIELD_CH_COLS);                     /* characters per row */
     POKE(0xD058, FIELD_CH_COLS * 2); POKE(0xD059, 0);/* bytes per row */

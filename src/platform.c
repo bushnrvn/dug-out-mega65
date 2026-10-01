@@ -82,16 +82,32 @@ void wait_frame(void)
     while (PEEK(0xD011) & 0x80) { }                   /* ... and the next frame starts when it wraps to the top */
 }
 
+/* Real hardware needs time: at 40 MHz a line that has just been driven or released has not yet settled when it is read back. */
+static void settle(uint8_t n)
+{
+    while (n--) __asm__("nop");
+}
+
 static uint8_t key_down(uint8_t col, uint8_t row)
 {
     POKE(0xDC00, (uint8_t)~(1u << col));
+    settle(24);
     return (PEEK(0xDC01) & (1u << row)) == 0;
 }
 
 uint8_t read_input(void)
 {
     uint8_t r = 0, shift, j;
-    POKE(0xDC02, 0xFF);                               /* port A drives the keyboard columns */
+    POKE(0xDC02, 0x00);                               /* the joystick (port 2) first, while the lines are still as the last call left them: inputs */
+    POKE(0xDC00, 0xFF);
+    settle(60);
+    j = (uint8_t)~PEEK(0xDC00);
+    if (j & 0x01) r |= INPUT_MASK_UP;
+    if (j & 0x02) r |= INPUT_MASK_DOWN;
+    if (j & 0x04) r |= INPUT_MASK_LEFT;
+    if (j & 0x08) r |= INPUT_MASK_RIGHT;
+    if (j & 0x10) r |= INPUT_MASK_A;
+    POKE(0xDC02, 0xFF);                               /* then port A drives the keyboard columns */
     POKE(0xDC03, 0x00);
     shift = key_down(1, 7) | key_down(6, 4);
     if (key_down(0, 7)) r |= shift ? INPUT_MASK_UP : INPUT_MASK_DOWN;       /* cursor down / up */
@@ -99,13 +115,7 @@ uint8_t read_input(void)
     if (key_down(1, 4)) r |= INPUT_MASK_A;                                  /* Z: throw */
     if (key_down(0, 1)) r |= INPUT_MASK_START;                              /* Return */
     POKE(0xDC00, 0xFF);
-    POKE(0xDC02, 0x00);                               /* port A back to input: joystick port 2 */
-    j = (uint8_t)~PEEK(0xDC00);
-    if (j & 0x01) r |= INPUT_MASK_UP;
-    if (j & 0x02) r |= INPUT_MASK_DOWN;
-    if (j & 0x04) r |= INPUT_MASK_LEFT;
-    if (j & 0x08) r |= INPUT_MASK_RIGHT;
-    if (j & 0x10) r |= INPUT_MASK_A;
+    POKE(0xDC02, 0x00);                               /* port A back to input, for the next call's joystick read */
     return r;
 }
 

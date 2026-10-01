@@ -708,7 +708,7 @@ void render_frame(void)
         draw_rocks();
         for (i = 0; i < MAXC; ++i)
             if (c_on[i]) draw_soft(SPR_TOMB, 8 + c_x[i], c_y[i], 0, 8);
-        if (candy_on && M(candy_c, candy_r) == 0) draw_soft(SPR_CANDY, 8 + (candy_c << 3), candy_r << 3, 0, 8);
+        if (gold_on && M(gold_c, gold_r) == 0) draw_soft(SPR_GOLD, 8 + (gold_c << 3), gold_r << 3, 0, 8);
         for (i = 0; i < MAXE; ++i)
             if (e_state[i] != ES_NONE) draw_enemy(i);
         draw_ball();

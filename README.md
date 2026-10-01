@@ -4,8 +4,7 @@ A port of Dug Out, a baseball-themed digging arcade game, to the MEGA65. The ori
 https://github.com/bushnrvn/dug-out
 
 You are Doug, a ballplayer who digs under the ballpark. Tunnel through the dirt, strike the creatures out with
-your fastball, and drop home plates on the rest. Nine innings, then a boss.
-
+your fastball, and drop home plates on the rest. 
 
 
 ## Credits

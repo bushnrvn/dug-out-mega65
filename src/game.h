@@ -35,13 +35,14 @@ extern unsigned char px, py, pdir, panim, pmoving;
 extern unsigned char ball_on, ball_x, ball_y, ball_dir, ball_dist, throw_cd, ball_dirt;
 extern unsigned char e_state[MAXE], e_type[MAXE], e_x[MAXE], e_y[MAXE], e_dir[MAXE], e_face[MAXE];
 extern unsigned char e_infl[MAXE], e_timer[MAXE], e_acc[MAXE], e_homec[MAXE], e_homer[MAXE], e_flen[MAXE];
+extern unsigned char e_flee[MAXE], e_pts[MAXE];
 extern unsigned char e_prevc[MAXE], e_prevr[MAXE];
 extern unsigned char c_on[MAXC], c_slot[MAXC], c_x[MAXC], c_y[MAXC];
 extern unsigned char enemies_left, espeed;
 extern unsigned char r_on[MAXR], r_c[MAXR], r_r[MAXR], r_y[MAXR], r_state[MAXR], r_timer[MAXR], r_kills[MAXR];
 extern unsigned char pop_t[MAXP], pop_x[MAXP], pop_y[MAXP];
 extern unsigned int pop_v[MAXP];
-extern unsigned char candy_on, candy_c, candy_r;   /* a wrapped candy lying in one enemy cave: 500 points */
+extern unsigned char peanut_on, peanut_c, peanut_r;   /* a peanut lying in one enemy cave: 500 points */
 extern unsigned char field_dirty;
 extern int player1_buttons, player1_new_buttons;
 

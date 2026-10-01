@@ -109,7 +109,12 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
 - A stunned enemy kills Doug on touch (the Groundskeeper still does not). Bats leave their pocket after 100 ticks instead of 150.
 - Extra life every 10,000 points (`next_life_h`, in hundreds, was 300).
 - Game over screen: a dark backing behind "YOU'RE OUT!" and the dot grid cleared from the "STRIKE 3" plaque's lettering (tools/convert.py).
-- A wrapped candy (new 8x8 sprite `candy` in the shared sprite sheet; `SP_CANDY_X/Y` in gen_art.h) lies in a random cell near the middle of a random
+- A peanut (new 8x8 sprite `peanut` in the shared sprite sheet; `SP_PEANUT_X/Y` in gen_art.h) lies in a random cell near the middle of a random
   enemy cave each inning: 500 points when Doug touches it, enemies walk over it. The sprite block grew, so `GLYPH_OFF` is now $1A00.
 - The theme's drum track now comes in after about 3 seconds instead of 30 (`drums_in_sooner` in tools/make_sound.py adds the same hit
   on the same beat grid earlier), because innings are shorter than 30 seconds of music.
+- When two enemies are left (`enemies_left <= 2`), every Vumpire, Heater and bat gives up the chase and becomes a ghost that tunnels
+  straight up through the dirt (`e_flee`), a little slower than Doug. One that reaches the top costs the score a kill would have paid
+  at the depth it started from (`e_pts`, hundreds; the score floors at 0) and counts as gone, so the inning can end. A hit still
+  stuns it, three strikes still put it out. Groundskeepers and Mad Scott never flee. The popup shows the loss with a minus sign
+  (bit 15 of `pop_v`).

@@ -213,8 +213,11 @@ int main(void)
     enemies_left = 0;
 #endif
 #endif
-#ifdef TEST_CANDY
-    candy_c = 6; candy_r = 2;                        /* the candy lies where Doug starts: picking it up should score 500 */
+#ifdef TEST_FLEE
+    enemies_left = 2; score_h = 10;                  /* two left and 1,000 points: the enemies should run for the top, and each that gets there costs its value */
+#endif
+#ifdef TEST_PEANUT
+    peanut_c = 6; peanut_r = 2;                        /* the peanut lies where Doug starts: picking it up should score 500 */
 #endif
 #ifdef TEST_HEATER
     {   /* inning 2: Doug in a cleared row, TEST_DIST pixels from the Heater (enemy 1), facing it, with nothing else about */

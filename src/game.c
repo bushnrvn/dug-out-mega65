@@ -60,13 +60,14 @@ unsigned char px, py, pdir, panim, pmoving;
 unsigned char ball_on, ball_x, ball_y, ball_dir, ball_dist, throw_cd, ball_dirt;
 unsigned char e_state[MAXE], e_type[MAXE], e_x[MAXE], e_y[MAXE], e_dir[MAXE], e_face[MAXE];
 unsigned char e_infl[MAXE], e_timer[MAXE], e_acc[MAXE], e_homec[MAXE], e_homer[MAXE], e_flen[MAXE];
+unsigned char e_flee[MAXE], e_pts[MAXE];      /* running for the top (the last two enemies), and what it would cost if they get there (hundreds) */
 unsigned char e_prevc[MAXE], e_prevr[MAXE];
 unsigned char c_on[MAXC], c_slot[MAXC], c_x[MAXC], c_y[MAXC];
 unsigned char enemies_left, espeed;
 unsigned char r_on[MAXR], r_c[MAXR], r_r[MAXR], r_y[MAXR], r_state[MAXR], r_timer[MAXR], r_kills[MAXR];
 unsigned char pop_t[MAXP], pop_x[MAXP], pop_y[MAXP];
 unsigned int pop_v[MAXP];
-unsigned char candy_on, candy_c, candy_r;
+unsigned char peanut_on, peanut_c, peanut_r;
 
 
 static void add_popup(unsigned char x, unsigned char y, unsigned int v)
@@ -147,7 +148,7 @@ static void reset_enemies_home(void)
     unsigned char i;
     for (i = 0; i < MAXE; ++i) {
         if (e_state[i] == ES_NONE) continue;
-        e_state[i] = (e_type[i] == 2) ? ES_GHOST : ES_WALK;
+        e_state[i] = (e_type[i] == 2) ? ES_GHOST : ES_WALK; e_flee[i] = 0;
         e_x[i] = e_homec[i] << 3; e_y[i] = e_homer[i] << 3;
         e_dir[i] = DIR_R; e_face[i] = DIR_R; e_prevc[i] = 255; e_prevr[i] = 255;
         e_infl[i] = 0; e_timer[i] = 0; e_acc[i] = 0;
@@ -166,7 +167,7 @@ void build_level(void)
     if (ne > MAXE) ne = MAXE;
     if (level >= INNINGS) ne = 1;               /* the final inning is the Mascot, alone */
 
-    for (i = 0; i < MAXE; ++i) e_state[i] = ES_NONE;
+    for (i = 0; i < MAXE; ++i) { e_state[i] = ES_NONE; e_flee[i] = 0; }
     for (i = 0; i < MAXC; ++i) c_on[i] = 0;
     for (i = 0; i < ne; ++i) {
         /* each pocket gets its own row, width, column and sometimes a shaft: nothing sits in a fixed slot */
@@ -208,10 +209,10 @@ void build_level(void)
             break;
         }
     }
-    i = rng() % ne;                             /* a wrapped candy lies in one of the enemy caves, near its middle */
+    i = rng() % ne;                             /* a peanut lies in one of the enemy caves, near its middle */
     c = e_homec[i] + rng() % 3 - 1; r = e_homer[i];
     if (M(c, r) != 0) c = e_homec[i];
-    candy_c = c; candy_r = r; candy_on = 1;
+    peanut_c = c; peanut_r = r; peanut_on = 1;
     reset_player();
     reset_enemies_home();
     field_dirty = 1;
@@ -370,8 +371,8 @@ static void player_update(void)
         }
     }
 
-    if (candy_on && ((px + 4) >> 3) == candy_c && ((py + 4) >> 3) == candy_r) {      /* the candy: enemies walk over it, Doug picks it up */
-        candy_on = 0;
+    if (peanut_on && ((px + 4) >> 3) == peanut_c && ((py + 4) >> 3) == peanut_r) {      /* the peanut: enemies walk over it, Doug picks it up */
+        peanut_on = 0;
         add_score(5); add_popup(px, py, 5);
         SFXP(ASSET__audio__oneup_sfx_ID, 1);
     }
@@ -525,6 +526,14 @@ static void enemy_update(unsigned char i)
 {
     unsigned char st = e_state[i], x = e_x[i], y = e_y[i], d, c, r, tc, tr;
 
+    if (enemies_left <= 2 && e_type[i] <= 2 && !e_flee[i] && (st == ES_WALK || st == ES_GHOST)) {
+        /* only two left: the rest give up the chase and run for the top, as ghosts through the dirt */
+        e_flee[i] = 1;
+        r = y >> 3;
+        e_pts[i] = (r <= 3) ? 2 : (r <= 6) ? 3 : (r <= 9) ? 4 : 5;      /* what a kill here would pay */
+        e_state[i] = st = ES_GHOST; e_acc[i] = 0;
+    }
+
     switch (st) {
     case ES_WALK:
         if (e_type[i] == 0) {
@@ -598,6 +607,22 @@ static void enemy_update(unsigned char i)
 
     case ES_GHOST:
         if (e_timer[i] < 250) ++e_timer[i];
+        if (e_flee[i]) {
+            e_acc[i] += espeed - 2;                        /* a little slower than Doug, so he can cut them off */
+            if (e_acc[i] < 16) return;
+            e_acc[i] -= 16;
+            if (y) --y;
+            e_y[i] = y;
+            if (y == 0) {                                  /* made it off the top: Doug loses what they were worth */
+                if (score_h > e_pts[i]) score_h -= e_pts[i]; else { score_h = 0; score_t = 0; }
+                score_dirty = 1;
+                add_popup(x, 0, e_pts[i] | 0x8000);
+                SFXP(ASSET__audio__thud_sfx_ID, 2);
+                e_state[i] = ES_NONE;
+                --enemies_left;
+            }
+            break;
+        }
         if (e_type[i] == 2) {
             /* baseball bat: flies straight at Doug through dirt, diagonally, never lands.
              * It hovers in its pocket for a few seconds (100 ticks) at the start of a round. */
@@ -618,7 +643,7 @@ static void enemy_update(unsigned char i)
         if (e_timer[i] > ((e_type[i] == 4) ? 120 : 90)) {
             e_timer[i] = 0;
             if (--e_infl[i] == 0) {
-                e_state[i] = (e_type[i] == 2) ? ES_GHOST : ES_WALK; e_acc[i] = 0;
+                e_state[i] = (e_type[i] == 2 || e_flee[i]) ? ES_GHOST : ES_WALK; e_acc[i] = 0;
             }
         }
         break;

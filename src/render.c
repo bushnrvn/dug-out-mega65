@@ -605,7 +605,8 @@ static void draw_popups(void)
     for (i = 0; i < MAXP; ++i) {
         if (!pop_t[i]) continue;
         v = pop_v[i];
-        n = 0;                                          /* hundreds, then "00" */
+        n = 0;                                          /* hundreds, then "00" (bit 15: a loss, with a minus sign) */
+        if (v & 0x8000) { buf[n++] = '-'; v &= 0x7FFF; }
         if (v >= 100) buf[n++] = '0' + v / 100;
         if (v >= 10) buf[n++] = '0' + (v / 10) % 10;
         buf[n++] = '0' + v % 10;
@@ -707,7 +708,7 @@ void render_frame(void)
         draw_rocks();
         for (i = 0; i < MAXC; ++i)
             if (c_on[i]) draw_soft(SPR_TOMB, 8 + c_x[i], c_y[i], 0, 8);
-        if (candy_on && M(candy_c, candy_r) == 0) draw_soft(SPR_CANDY, 8 + (candy_c << 3), candy_r << 3, 0, 8);
+        if (peanut_on && M(peanut_c, peanut_r) == 0) draw_soft(SPR_PEANUT, 8 + (peanut_c << 3), peanut_r << 3, 0, 8);
         for (i = 0; i < MAXE; ++i)
             if (e_state[i] != ES_NONE) draw_enemy(i);
         draw_ball();

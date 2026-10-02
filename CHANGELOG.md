@@ -3,6 +3,9 @@
 Versions follow MAJOR.MINOR.PATCH, and this port's version tracks the GameTank game's (the game rules are shared). The current version is in
 `VERSION`. Each release is a git tag (`v1.4.0`) with the game disk (`dugout.d81`) attached.
 
+## 1.4.2
+* Fixed an inning that could never end. When Doug was caught while an enemy was in the middle of dying (its pop or squash animation), the round reset brought that enemy back to its cave alive but not counted, so the count of enemies left could reach zero with one still alive. Enemies that were already struck out or crushed now stay gone.
+
 ## 1.4.1
 * Fixed a freeze that could happen at the start of an inning on real hardware, most often from inning 3 on, when the screen was busy.
   The table that tracks which characters a frame has copied for sprites used a signed byte, so a frame needing more than 127 copies wrote outside it.

@@ -3,6 +3,10 @@
 Versions follow MAJOR.MINOR.PATCH, and this port's version tracks the GameTank game's (the game rules are shared). The current version is in
 `VERSION`. Each release is a git tag (`v1.4.0`) with the game disk (`dugout.d81`) attached.
 
+## 1.4.1
+* Fixed a freeze that could happen at the start of an inning on real hardware, most often from inning 3 on, when the screen was busy.
+  The table that tracks which characters a frame has copied for sprites used a signed byte, so a frame needing more than 127 copies wrote outside it.
+
 ## 1.4.0
 First public version of the MEGA65 port. It plays the whole game of Dug Out 1.4.0 and has been run on a real MEGA65 (an R6) as well as in Xemu.
 

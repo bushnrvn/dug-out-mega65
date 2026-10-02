@@ -57,7 +57,7 @@
 #define FIELD_Y      (TEXT_Y + HUD_ROWS * 8)
 
 static uint16_t base_scr[SCREEN_ROWS][FIELD_CH_COLS];   /* the plain map: dirt and tunnels */
-static int8_t dyn_of[SCREEN_ROWS][FIELD_CH_COLS];       /* which copy a cell has this frame, or -1 */
+static uint8_t dyn_of[SCREEN_ROWS][FIELD_CH_COLS];      /* which copy a cell has this frame, or 255 (not int8_t: there are more than 127 copies) */
 static uint16_t dyn_cell[DYN_MAX];                      /* the cell of each copy: row * 16 + column */
 static uint8_t dyn_n;
 static uint8_t dyn_shadow[DYN_MAX][64];                 /* the copies, in normal memory while they are drawn into */
@@ -129,8 +129,8 @@ static void rebuild_base(void)
 /* ------------------------------------------------------- software sprites -- */
 static uint8_t *dyn_for(uint8_t cc, uint8_t cr)
 {
-    int8_t d = dyn_of[cr][cc];
-    if (d < 0) {
+    uint8_t d = dyn_of[cr][cc];
+    if (d == 0xFF) {
         if (dyn_n >= DYN_MAX) return dyn_dummy;
         d = dyn_n++;
         dyn_of[cr][cc] = d;

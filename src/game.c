@@ -173,6 +173,7 @@ static void reset_enemies_home(void)
     unsigned char i;
     for (i = 0; i < MAXE; ++i) {
         if (e_state[i] == ES_NONE) continue;
+        if (e_state[i] == ES_POP || e_state[i] == ES_SQUASH) { e_state[i] = ES_NONE; continue; }     /* already counted out: it stays gone */
         e_state[i] = (e_type[i] == 2) ? ES_GHOST : ES_WALK; e_flee[i] = 0; e_mv[i] = 0;
         e_x[i] = e_homec[i] << 3; e_y[i] = e_homer[i] << 3;
         e_dir[i] = DIR_R; e_face[i] = DIR_R; e_prevc[i] = 255; e_prevr[i] = 255;

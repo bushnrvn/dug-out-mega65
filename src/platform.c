@@ -118,6 +118,9 @@ static uint8_t one_direction(uint8_t d)
     return d;
 }
 
+uint8_t quit_requested;                                /* RUN/STOP has been held for about a second (see read_input) */
+static uint8_t stop_ticks;
+
 uint8_t read_input(void)
 {
     uint8_t r = 0, shift, j;
@@ -137,6 +140,8 @@ uint8_t read_input(void)
     if (key_down(0, 2)) r |= shift ? INPUT_MASK_LEFT : INPUT_MASK_RIGHT;    /* cursor right / left */
     if (key_down(1, 4)) r |= INPUT_MASK_A;                                  /* Z: throw */
     if (key_down(0, 1)) r |= INPUT_MASK_START;                              /* Return */
+    if (key_down(7, 7)) { if (stop_ticks < 255) ++stop_ticks; } else stop_ticks = 0;     /* RUN/STOP: held for 30 ticks (about a second) quits */
+    quit_requested = stop_ticks >= 30;
     POKE(0xDC00, 0xFF);
     POKE(0xDC02, 0x00);                               /* port A back to input, for the next call's joystick read */
     return (r & ~DIR_BITS) | one_direction(r & DIR_BITS);

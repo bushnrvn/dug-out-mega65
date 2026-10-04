@@ -139,3 +139,6 @@ Xemu hid all of these. The game was first built and tested only in Xemu, and non
 - Walking enemies find Doug with `bfs_dir` (a breadth first search over open cells, shared with the fleeing code) in `choose_dir`: if the
   tunnels connect them to Doug (or to a headstone, for a Vumpire) they take the first step of the shortest way, 92% of the time at each
   junction; otherwise they steer greedily with a few cells of noise, as before. Sealed enemies therefore stay put until a path is opened.
+
+## Quitting to the desktop
+`src/quit.s`: when RUN/STOP has been held for about a second (`read_input` sets `quit_requested`), the game looks for the MEGA65 Desktop's saved copy in attic RAM ($87E0000, "DESK") and, if it is there, copies that header to $CE00 and jumps to the restore routine inside it, which silences the sound chips, puts the KERNAL's interrupt vector and the CIA 1 timer back, restores the video chip and restarts the desktop. If there is no saved copy it returns and the game carries on. The C stack is 640 bytes (was 768) to make room for the routine.

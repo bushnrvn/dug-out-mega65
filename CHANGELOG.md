@@ -3,6 +3,9 @@
 Versions follow MAJOR.MINOR.PATCH, and this port's version tracks the GameTank game's (the game rules are shared). The current version is in
 `VERSION`. Each release is a git tag (`v1.4.0`) with the game disk (`dugout.d81`) attached.
 
+## 1.4.3
+* Hold RUN/STOP for about a second to quit. If the game was started from the MEGA65 Desktop it returns to the desktop; started any other way, nothing happens (reset the machine).
+
 ## 1.4.2
 * Fixed an inning that could never end. When Doug was caught while an enemy was in the middle of dying (its pop or squash animation), the round reset brought that enemy back to its cave alive but not counted, so the count of enemies left could reach zero with one still alive. Enemies that were already struck out or crushed now stay gone.
 

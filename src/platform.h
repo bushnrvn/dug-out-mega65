@@ -22,6 +22,8 @@ void dma_char_in(uint16_t ch, uint8_t *dst);          /* 64 bytes of character n
 void dma_char_out(const uint8_t *src, uint16_t ch);   /* and back */
 
 uint8_t read_input(void);    /* INPUT_MASK_* bits from the keyboard and joystick port 2 */
+extern uint8_t quit_requested;   /* set by read_input when RUN/STOP has been held for about a second */
+void quit_to_desktop(void);  /* quit.s: go back to the MEGA65 Desktop if it started this game (it never returns then); does nothing and returns if it did not */
 uint16_t timer_now(void);    /* free-running, counts down */
 void timer_start(void);
 void wait_frame(void);       /* returns at the start of the next video frame */

@@ -1,6 +1,6 @@
 # Dug Out for the MEGA65. Needs cc65 with the mega65 target (set CC65_HOME if it is not on your path) and Python 3.
 CL65 ?= cl65
-SRCS := src/early.s src/blit.s src/sound.s src/main.c src/platform.c src/render.c src/game.c src/data.c src/sprites.c
+SRCS := src/early.s src/blit.s src/sound.s src/quit.s src/main.c src/platform.c src/render.c src/game.c src/data.c src/sprites.c
 CFG  := cfg/dugout.cfg
 OUT  := build/dugout.prg
 DATA := build/assets/TILES.BIN build/assets/TITLE.BIN build/assets/OVER.BIN build/assets/WIN.BIN build/assets/SOUND.BIN build/assets/SPRITES.BIN build/assets/INTRO.BIN

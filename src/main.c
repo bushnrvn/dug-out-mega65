@@ -304,6 +304,10 @@ int main(void)
 #endif
 #else
         in = read_input();
+        if (quit_requested) quit_to_desktop();       /* holding RUN/STOP goes back to the desktop (does nothing if the desktop did not start the game) */
+#ifdef QUIT_AFTER
+        { static uint16_t qn; if (++qn == QUIT_AFTER) quit_to_desktop(); }      /* a test build quits by itself after this many ticks */
+#endif
 #endif
         player1_buttons = in;
         player1_new_buttons = in & ~old;

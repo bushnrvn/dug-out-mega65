@@ -240,7 +240,7 @@ def title_plane():
     logo = [spr_sheet[ly + j][lx + i] for j in range(lh) for i in range(lw)]
     put(logo, lw, lh, 64 - lw // 2, 11, True)
     panel(20, 84, 88, 12)
-    msg = 'Z:THROW CURSORS:DIG'
+    msg = 'WASD:MOVE SPACE:THROW'
     text(64 - len(msg) * 2, 87, msg, 0)
     return plane
 

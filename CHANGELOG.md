@@ -3,6 +3,12 @@
 Versions follow MAJOR.MINOR.PATCH, and this port's version tracks the GameTank game's (the game rules are shared). The current version is in
 `VERSION`. Each release is a git tag (`v1.4.0`) with the game disk (`dugout.d81`) attached.
 
+## 1.4.4
+* Controls: W A S D move, Space throws (was Z); the cursor keys still work. The newest direction key pressed always wins, and opposite keys no longer cancel each other.
+  Left and Up are read from the MEGA65's own cursor-left and cursor-up flags ($D60F) instead of the Shift trick.
+* A quick tap on a direction key now still turns Doug: the turn is remembered for a few ticks and completed when he reaches the grid line.
+* The title screen shows the new keys. The sprite-copy pool is 138 characters (was 140) to make room in main memory.
+
 ## 1.4.3
 * Hold RUN/STOP for about a second to quit. If the game was started from the MEGA65 Desktop it returns to the desktop; started any other way, nothing happens (reset the machine).
 

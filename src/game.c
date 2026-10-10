@@ -57,6 +57,7 @@ unsigned char score_dirty;
 unsigned int lfsr = 0xACE1u;
 unsigned int run_seed = 0x1357u;
 unsigned char px, py, pdir, panim, pmoving;
+static unsigned char pend, pend_t;                  /* a turn asked for (direction + 1) and for how many more ticks it is remembered */
 unsigned char ball_on, ball_x, ball_y, ball_dir, ball_dist, throw_cd, ball_dirt;
 unsigned char e_state[MAXE], e_type[MAXE], e_x[MAXE], e_y[MAXE], e_dir[MAXE], e_face[MAXE];
 unsigned char e_infl[MAXE], e_timer[MAXE], e_acc[MAXE], e_homec[MAXE], e_homer[MAXE], e_flen[MAXE];
@@ -162,7 +163,7 @@ static void carve(unsigned char c, unsigned char r, unsigned char w, unsigned ch
 
 static void reset_player(void)
 {
-    px = 6 << 3; py = 2 << 3; pdir = DIR_D; panim = 0; pmoving = 0;
+    px = 6 << 3; py = 2 << 3; pdir = DIR_D; panim = 0; pmoving = 0; pend_t = 0;
     ball_on = 0; throw_cd = 0;
     carve(6, 1, 1, 2);
 }
@@ -353,11 +354,14 @@ static void player_update(void)
         else if (b & INPUT_MASK_DOWN) want = DIR_D;
     }
 
+    /* A turn that has been asked for is carried through: a quick tap on an arrow key must still turn Doug when he reaches the grid line (below) */
+    if (want == 255 && pend_t && ((pend - 1) >> 1) != (pdir >> 1)) { want = pend - 1; --pend_t; } else if (want == 255) pend_t = 0;
     if (want != 255) {
         if ((want >> 1) != (pdir >> 1)) {
-            /* turning a corner: slide onto the grid first */
+            /* turning a corner: first onto the nearest grid line (the turn is remembered for a few ticks, so a quick tap still turns Doug) */
             misal = (want < 2) ? (py & 7) : (px & 7);
             if (misal) {
+                pend = want + 1; pend_t = 12;
                 if (want < 2) d = (misal <= 4) ? DIR_U : DIR_D;
                 else          d = (misal <= 4) ? DIR_L : DIR_R;
                 if (can_move(px, py, d)) {
@@ -366,10 +370,10 @@ static void player_update(void)
                 }
                 want = 255;
             } else {
-                pdir = want;
+                pdir = want; pend_t = 0;
             }
         } else {
-            pdir = want;
+            pdir = want; pend_t = 0;
         }
     }
 

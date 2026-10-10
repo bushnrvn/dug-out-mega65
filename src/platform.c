@@ -95,35 +95,28 @@ static uint8_t key_down(uint8_t col, uint8_t row)
     return (PEEK(0xDC01) & (1u << row)) == 0;
 }
 
-/* One direction at a time. An 8-way joystick (or two cursor keys) held on a diagonal would make Doug turn on the spot every tick, so
- * a diagonal is resolved to one of its two directions: the one that was just added, or else the one that was already being followed. */
-static uint8_t last_dir, prev_dirs;
+/* One direction at a time, and it is the key pressed last: pressing a second key takes over at once, and when that is let go the first (if still held) carries on.
+ * (Opposite keys do not cancel each other: mashing Left and Right always turns Doug the way of the newest press.) */
+static uint8_t cur_dir, prev_dirs;
 #define DIR_BITS (INPUT_MASK_UP | INPUT_MASK_DOWN | INPUT_MASK_LEFT | INPUT_MASK_RIGHT)
 
 static uint8_t one_direction(uint8_t d)
 {
-    uint8_t fresh, v, h;
-    if ((d & (INPUT_MASK_UP | INPUT_MASK_DOWN)) == (INPUT_MASK_UP | INPUT_MASK_DOWN)) d &= ~(INPUT_MASK_UP | INPUT_MASK_DOWN);
-    if ((d & (INPUT_MASK_LEFT | INPUT_MASK_RIGHT)) == (INPUT_MASK_LEFT | INPUT_MASK_RIGHT)) d &= ~(INPUT_MASK_LEFT | INPUT_MASK_RIGHT);
-    v = d & (INPUT_MASK_UP | INPUT_MASK_DOWN);
-    h = d & (INPUT_MASK_LEFT | INPUT_MASK_RIGHT);
-    fresh = d & ~prev_dirs;                                       /* what is held now that was not held on the last call */
-    prev_dirs = d;                                                /* (the directions held, not the one chosen) */
-    if (v && h) {
-        if (fresh == v || fresh == h) d = fresh;                  /* exactly one was just added: turn to it */
-        else if (last_dir & d) d = last_dir & d;                  /* otherwise keep going the way we were */
-        else d = h;
-    }
-    if (d) last_dir = d;
-    return d;
+    uint8_t fresh = d & ~prev_dirs;                               /* pressed since the last call */
+    prev_dirs = d;
+    if (fresh) cur_dir = fresh & (uint8_t)-fresh;                 /* the new key (if two at once, either) */
+    else if (!(cur_dir & d)) cur_dir = d & (uint8_t)-d;           /* the one we were following was let go: take whichever is still held */
+    return cur_dir;
 }
 
 uint8_t quit_requested;                                /* RUN/STOP has been held for about a second (see read_input) */
 static uint8_t stop_ticks;
 
+static uint8_t pf;                                /* the cursor left / up flags of the last call */
+
 uint8_t read_input(void)
 {
-    uint8_t r = 0, shift, j;
+    uint8_t r = 0, f, j;
     POKE(0xDC02, 0x00);                               /* the joystick (port 2) first, while the lines are still as the last call left them: inputs */
     POKE(0xDC00, 0xFF);
     settle(60);
@@ -135,10 +128,21 @@ uint8_t read_input(void)
     if (j & 0x10) r |= INPUT_MASK_A;
     POKE(0xDC02, 0xFF);                               /* then port A drives the keyboard columns */
     POKE(0xDC03, 0x00);
-    shift = key_down(1, 7) | key_down(6, 4);
-    if (key_down(0, 7)) r |= shift ? INPUT_MASK_UP : INPUT_MASK_DOWN;       /* cursor down / up */
-    if (key_down(0, 2)) r |= shift ? INPUT_MASK_LEFT : INPUT_MASK_RIGHT;    /* cursor right / left */
-    if (key_down(1, 4)) r |= INPUT_MASK_A;                                  /* Z: throw */
+    /* The cursor keys. On the Commodore keyboard Left and Up are Right and Down with Shift, which cannot tell "Up and Right" from "Left and Down" when
+     * two are held, and the Shift can drop a moment before the key does. The MEGA65 has the two keys' own flags ($D60F bit 0: cursor left, bit 1: cursor up),
+     * so Left and Up come from those, and the matrix's Right and Down only count when the flag for the same key is clear (a Left press also shows as Right
+     * in the matrix) and was clear a moment ago too (the matrix and the flag can change a tick apart). */
+    f = PEEK(0xD60F) & 3;
+    if (f & 1) r |= INPUT_MASK_LEFT;
+    if (f & 2) r |= INPUT_MASK_UP;
+    if (key_down(0, 7) && !((f | pf) & 2)) r |= INPUT_MASK_DOWN;
+    if (key_down(0, 2) && !((f | pf) & 1)) r |= INPUT_MASK_RIGHT;
+    pf = f;
+    if (key_down(1, 1)) r |= INPUT_MASK_UP;           /* W A S D, the main controls: ordinary keys that cannot interfere with each other (Xemu, for one, gives the cursor keys */
+    if (key_down(1, 2)) r |= INPUT_MASK_LEFT;         /* one shared matrix position and a pretend Shift, so overlapping presses of them can cancel */
+    if (key_down(1, 5)) r |= INPUT_MASK_DOWN;
+    if (key_down(2, 2)) r |= INPUT_MASK_RIGHT;
+    if (key_down(7, 4)) r |= INPUT_MASK_A;                                  /* Space: throw */
     if (key_down(0, 1)) r |= INPUT_MASK_START;                              /* Return */
     if (key_down(7, 7)) { if (stop_ticks < 255) ++stop_ticks; } else stop_ticks = 0;     /* RUN/STOP: held for 30 ticks (about a second) quits */
     quit_requested = stop_ticks >= 30;

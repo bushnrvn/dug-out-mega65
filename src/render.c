@@ -35,7 +35,7 @@
 #define TOTAL_CHARS  (HUD_CHARS + SCREEN_CHARS)
 #define FIELD_OFS    (HUD_CHARS * 2)         /* byte offset of the field's rows inside a screen buffer */
 #ifndef DYN_MAX
-#define DYN_MAX      140                     /* characters that can be unique to one frame (the most seen: 134, on the victory screen) */
+#define DYN_MAX      138                     /* characters that can be unique to one frame (the most seen: 134, on the victory screen; a frame that needs more draws the extra sprites nowhere) */
 #endif
 #define POOL_A       1316u                   /* their character numbers: two pools, one per screen buffer */
 #define POOL_B       (POOL_A + DYN_MAX)
@@ -692,6 +692,7 @@ static void draw_title(void)
     p = (t - 44) & 127;
     if (p < 112) draw_soft(S_EMB[f], 8 + p, 72, 0, 8);
     if ((frame_ct & 32) == 0) draw_text(44, 40, "PUSH START", 1);
+    draw_text_center(98, "RETURN START", 0);
 }
 
 void render_frame(void)

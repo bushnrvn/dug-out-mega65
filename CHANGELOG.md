@@ -3,6 +3,9 @@
 Versions follow MAJOR.MINOR.PATCH, and this port's version tracks the GameTank game's (the game rules are shared). The current version is in
 `VERSION`. Each release is a git tag (`v1.4.0`) with the game disk (`dugout.d81`) attached.
 
+## 1.4.5
+* No change to the MEGA65 game: the version follows the GameTank game's, whose 1.4.5 adds the same W A S D and Space controls (and a Safari keyboard fix in its web build). The game disk is the same as 1.4.4's.
+
 ## 1.4.4
 * Controls: W A S D move, Space throws (was Z); the cursor keys still work. The newest direction key pressed always wins, and opposite keys no longer cancel each other.
   Left and Up are read from the MEGA65's own cursor-left and cursor-up flags ($D60F) instead of the Shift trick.
